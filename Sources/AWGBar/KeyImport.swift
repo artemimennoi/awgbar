@@ -12,21 +12,74 @@ struct AppError: LocalizedError {
     var errorDescription: String? { message }
 }
 
-/// Accepts an AmneziaVPN key (vpn://...) or a plain AmneziaWG .conf text.
+/// Accepts an AmneziaVPN key (vpn://...), AmneziaVPN JSON (a decoded key, a connection export
+/// or a settings backup) or a plain AmneziaWG .conf text.
 enum KeyImport {
     static func parse(_ text: String, suggestedName: String) throws -> [ImportedTunnel] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("vpn://") {
-            return try decodeVpnKey(trimmed)
+            return try configs(in: decodeVpnKey(trimmed), suggestedName: suggestedName)
+        }
+        let looksLikeJSON = trimmed.hasPrefix("{") || trimmed.hasPrefix("[")
+        // A .conf starts with "[Interface]" too, so only a successful parse makes it JSON.
+        if looksLikeJSON, let doc = try? JSONSerialization.jsonObject(with: Data(trimmed.utf8)) {
+            return try configs(in: doc, suggestedName: suggestedName)
         }
         if trimmed.range(of: "[Interface]", options: .caseInsensitive) != nil {
             return [ImportedTunnel(name: suggestedName, config: trimmed + "\n")]
         }
-        throw AppError(L("Expected a vpn://… key or an AmneziaWG config"))
+        if looksLikeJSON { throw AppError(L("The file is not valid JSON")) }
+        throw AppError(L("Expected a vpn://… key, AmneziaVPN JSON or an AmneziaWG config"))
+    }
+
+    /// AmneziaVPN keeps the ready wg-quick text in `containers[].awg.last_config.config`, where
+    /// `last_config` is itself JSON encoded as a string. Keys, exports and backups nest that at
+    /// different depths, so walk the whole document, unwrap JSON found in strings, and take every
+    /// string that is a config. The title is the nearest server `description`.
+    static func configs(in doc: Any, suggestedName: String) throws -> [ImportedTunnel] {
+        var result: [ImportedTunnel] = []
+        var seen = Set<String>()
+        var sawAPIConfig = false
+
+        func walk(_ node: Any, title: String?) {
+            switch node {
+            case let dict as [String: Any]:
+                if dict["api_config"] != nil || dict["auth_data"] != nil { sawAPIConfig = true }
+                let description = (dict["description"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                let title = description ?? title ?? (dict["hostName"] as? String)
+                for key in dict.keys.sorted() { walk(dict[key]!, title: title) }
+            case let array as [Any]:
+                array.forEach { walk($0, title: title) }
+            case let string as String:
+                let text = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                // JSON first: an encoded server list contains "[Interface]" too. A config itself
+                // starts with "[Interface]" and never parses as JSON.
+                if text.hasPrefix("{") || text.hasPrefix("["),
+                   let nested = try? JSONSerialization.jsonObject(with: Data(text.utf8)) {
+                    walk(nested, title: title)
+                } else if text.range(of: "[Interface]", options: .caseInsensitive) != nil,
+                          text.range(of: "[Peer]", options: .caseInsensitive) != nil {
+                    if seen.insert(text).inserted {
+                        result.append(ImportedTunnel(name: title ?? suggestedName, config: text + "\n"))
+                    }
+                }
+            default:
+                break
+            }
+        }
+
+        walk(doc, title: nil)
+        guard !result.isEmpty else {
+            if sawAPIConfig {
+                throw AppError(L("This is an Amnezia Premium/Free key: its config is issued by Amnezia's server at connect time and cannot be imported"))
+            }
+            throw AppError(L("No ready AmneziaWG config inside. If this is an admin key or a backup, connect once in AmneziaVPN and share the connection in AmneziaWG format"))
+        }
+        return result
     }
 
     /// vpn:// is base64url of Qt's qCompress output: a 4-byte big-endian length, then a zlib stream.
-    static func decodeVpnKey(_ key: String) throws -> [ImportedTunnel] {
+    static func decodeVpnKey(_ key: String) throws -> Any {
         var b64 = String(key.dropFirst("vpn://".count)).filter { !$0.isWhitespace }
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
@@ -41,30 +94,10 @@ enum KeyImport {
         } else {
             json = raw
         }
-        guard let doc = try? JSONSerialization.jsonObject(with: json) as? [String: Any] else {
+        guard let doc = try? JSONSerialization.jsonObject(with: json) else {
             throw AppError(L("Broken key: cannot unpack it"))
         }
-        if doc["api_config"] != nil || doc["auth_data"] != nil {
-            throw AppError(L("This is an Amnezia Premium/Free key: its config is issued by Amnezia's server at connect time and cannot be imported"))
-        }
-
-        let title = (doc["description"] as? String) ?? (doc["hostName"] as? String) ?? "awg"
-        var result: [ImportedTunnel] = []
-        for container in doc["containers"] as? [[String: Any]] ?? [] {
-            for proto in ["awg", "wireguard"] {
-                guard let block = container[proto] as? [String: Any], let last = block["last_config"] else { continue }
-                let lastConfig = (last as? String).flatMap {
-                    try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]
-                } ?? (last as? [String: Any])
-                if let config = lastConfig?["config"] as? String {
-                    result.append(ImportedTunnel(name: title, config: config.trimmingCharacters(in: .whitespacesAndNewlines) + "\n"))
-                }
-            }
-        }
-        guard !result.isEmpty else {
-            throw AppError(L("The key has no ready AmneziaWG config. If it is an admin key, connect once in AmneziaVPN and share the connection in AmneziaWG format"))
-        }
-        return result
+        return doc
     }
 
     /// awg-quick uses the file name as the interface name: [a-zA-Z0-9_=+.-]{1,15}.

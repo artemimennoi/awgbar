@@ -238,6 +238,8 @@ final class TunnelStore: ObservableObject {
         await perform { [self] in
             var taken = Set(tunnels.map(\.name))
             var last: Response?
+            var duplicate: String?
+            // A backup can hold several servers: skip the ones we already have and import the rest.
             for item in try KeyImport.parse(text, suggestedName: suggestedName) {
                 let name = KeyImport.tunnelName(from: item.name, taken: taken)
                 taken.insert(name)
@@ -245,12 +247,14 @@ final class TunnelStore: ObservableObject {
                     last = try await send(Request(.importConfig, name: name, config: item.config, title: item.name))
                     selected = name
                 } catch let failure as HelperFailure where failure.code?.hasPrefix("duplicate:") == true {
-                    // Point at the copy we already have instead of adding another one.
-                    let existing = String(failure.code!.dropFirst("duplicate:".count))
-                    selected = existing
-                    let title = tunnels.first { $0.name == existing }?.displayName ?? existing
-                    throw HelperFailure(message: L("Already added as %@", title), log: nil)
+                    duplicate = duplicate ?? String(failure.code!.dropFirst("duplicate:".count))
                 }
+            }
+            if last == nil, let duplicate {
+                // Nothing new: point at the copy we already have.
+                selected = duplicate
+                let title = tunnels.first { $0.name == duplicate }?.displayName ?? duplicate
+                throw HelperFailure(message: L("Already added as %@", title), log: nil)
             }
             return last
         }

@@ -51,11 +51,12 @@
 
 /* Import */
 "Already added as %@" = "Уже добавлен как %@";
-"Expected a vpn://… key or an AmneziaWG config" = "Нужен ключ vpn://… или конфиг AmneziaWG";
+"Expected a vpn://… key, AmneziaVPN JSON or an AmneziaWG config" = "Нужен ключ vpn://…, JSON из AmneziaVPN или конфиг AmneziaWG";
+"The file is not valid JSON" = "Файл не является корректным JSON";
 "Broken key: not base64" = "Ключ повреждён: это не base64";
 "Broken key: cannot unpack it" = "Ключ повреждён: не удалось распаковать";
 "This is an Amnezia Premium/Free key: its config is issued by Amnezia's server at connect time and cannot be imported" = "Это ключ Amnezia Premium/Free: конфиг выдаётся их сервером при подключении, импортировать его нельзя";
-"The key has no ready AmneziaWG config. If it is an admin key, connect once in AmneziaVPN and share the connection in AmneziaWG format" = "В ключе нет готового конфига AmneziaWG. Если это админский ключ, подключись один раз в AmneziaVPN и поделись подключением в формате AmneziaWG";
+"No ready AmneziaWG config inside. If this is an admin key or a backup, connect once in AmneziaVPN and share the connection in AmneziaWG format" = "Внутри нет готового конфига AmneziaWG. Если это админский ключ или бэкап, подключись один раз в AmneziaVPN и поделись подключением в формате AmneziaWG";
 
 /* Helper installation */
 "awgbar is installing a helper that brings up the VPN tunnel." = "awgbar устанавливает помощник, который поднимает VPN-туннель.";
