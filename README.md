@@ -8,12 +8,20 @@ send chosen subnets around the VPN.
 No paid Apple Developer account is needed: instead of a Network Extension it uses a small root
 helper (a LaunchDaemon) that runs `amneziawg-go` and `awg-quick`.
 
-## Requirements
+## Install from a release
 
-- macOS 14 or later
-- Xcode Command Line Tools (Swift), Go, git, curl
+Apple Silicon, macOS 14 or later. Download `awgbar-<version>-macos-arm64.zip` from
+[Releases](https://github.com/artemimennoi/awgbar/releases), unzip it and move `AWGBar.app` to
+`~/Applications`. The app is ad-hoc signed, not notarized, so macOS blocks it the first time;
+clear the quarantine flag once:
 
-## Build and install
+```bash
+xattr -dr com.apple.quarantine ~/Applications/AWGBar.app
+```
+
+## Build from source
+
+Requirements: macOS 14 or later, Xcode Command Line Tools (Swift), Go, git, curl.
 
 ```bash
 make install

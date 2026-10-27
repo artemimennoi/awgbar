@@ -13,7 +13,10 @@ BASH_DIR   := $(DEPS)/bash-$(BASH_VER)
 AWG_GO_REV    ?= b5928efb6ca19f0153958460c3d141f04abc5c2e
 AWG_TOOLS_REV ?= ee0f0a9aa34ff0a0da4b3433b9512781cfe02843
 
-.PHONY: all app deps install uninstall clean distclean
+VERSION    := $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)
+DIST       := build/dist
+
+.PHONY: all app deps install uninstall dist clean distclean
 
 all: app
 
@@ -66,6 +69,18 @@ install: app
 	rm -rf $(HOME)/Applications/AWGBar.app
 	cp -R $(APP) $(HOME)/Applications/
 	@echo "installed to ~/Applications/AWGBar.app — open it and press Install Helper"
+
+# Release assets: the app, plus the corresponding source of the GPL parts it ships.
+dist: app
+	rm -rf $(DIST) && mkdir -p $(DIST)/src
+	ditto -c -k --keepParent $(APP) $(DIST)/awgbar-$(VERSION)-macos-arm64.zip
+	git -C $(AWG_TOOLS) archive --prefix=amneziawg-tools/ -o "$(CURDIR)/$(DIST)/src/amneziawg-tools-$(AWG_TOOLS_REV).tar.gz" HEAD
+	git -C $(AWG_GO) archive --prefix=amneziawg-go/ -o "$(CURDIR)/$(DIST)/src/amneziawg-go-$(AWG_GO_REV).tar.gz" HEAD
+	cp $(DEPS)/bash-$(BASH_VER).tar.gz Resources/awg-quick-darwin.patch THIRD_PARTY_NOTICES.md $(DIST)/src/
+	tar -czf $(DIST)/awgbar-$(VERSION)-third-party-sources.tar.gz -C $(DIST) src
+	rm -rf $(DIST)/src
+	cd $(DIST) && shasum -a 256 *.zip *.tar.gz > SHA256SUMS
+	@ls -la $(DIST)
 
 uninstall:
 	sudo bash Resources/uninstall-helper.sh
