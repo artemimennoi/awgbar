@@ -37,6 +37,17 @@
 "Reinstall Helper…" = "Переустановить помощник…";
 "Disconnect VPN and Quit" = "Отключить VPN и выйти";
 "Quit" = "Выйти";
+"Check for Updates…" = "Проверить обновления…";
+
+/* Updates */
+"Update to %@" = "Обновить до %@";
+"Download, install and relaunch; the VPN stays connected" = "Скачать, установить и перезапустить; VPN не отключится";
+"awgbar %@ is up to date" = "awgbar %@ — последняя версия";
+"Cannot reach GitHub to check for updates" = "Не удалось связаться с GitHub для проверки обновлений";
+"Cannot download the update" = "Не удалось скачать обновление";
+"Move awgbar to Applications to update it" = "Перенеси awgbar в «Программы», чтобы обновлять его";
+"The update failed its checksum check" = "Обновление не прошло проверку контрольной суммы";
+"The update does not contain awgbar" = "В обновлении нет awgbar";
 
 /* Alerts and errors */
 "Helper error" = "Ошибка помощника";

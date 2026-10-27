@@ -64,11 +64,13 @@ app: deps
 	codesign --force --sign - $(APP)
 	@echo "built $(APP)"
 
+# Same place the DMG installs to, so updating replaces the app instead of adding a second copy.
+# /Applications is writable by admin users; 0.0.3 and older installed into ~/Applications.
 install: app
-	mkdir -p $(HOME)/Applications
 	rm -rf $(HOME)/Applications/AWGBar.app
-	cp -R $(APP) $(HOME)/Applications/
-	@echo "installed to ~/Applications/AWGBar.app — open it and press Install Helper"
+	rm -rf /Applications/AWGBar.app
+	cp -R $(APP) /Applications/
+	@echo "installed to /Applications/AWGBar.app — open it and press Install Helper"
 
 # Release assets: the app, plus the corresponding source of the GPL parts it ships.
 dist: app
@@ -88,7 +90,7 @@ dist: app
 
 uninstall:
 	sudo bash Resources/uninstall-helper.sh
-	rm -rf $(HOME)/Applications/AWGBar.app
+	rm -rf /Applications/AWGBar.app $(HOME)/Applications/AWGBar.app
 
 clean:
 	rm -rf build .build

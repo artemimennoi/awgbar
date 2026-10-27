@@ -38,6 +38,21 @@ final class TunnelStore: ObservableObject {
     }
     @Published var errorLog: String?
     private var errorDismissal: Task<Void, Never>?
+    /// A short non-error message ("up to date"), dismissed the same way.
+    @Published var notice: String? {
+        didSet { scheduleNoticeDismissal() }
+    }
+    private var noticeDismissal: Task<Void, Never>?
+
+    private func scheduleNoticeDismissal() {
+        noticeDismissal?.cancel()
+        guard let shown = notice else { return }
+        noticeDismissal = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled, let self, self.notice == shown else { return }
+            self.notice = nil
+        }
+    }
 
     /// Errors fade out like a notification banner; a new error restarts the clock.
     private func scheduleErrorDismissal() {

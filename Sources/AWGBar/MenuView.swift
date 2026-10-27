@@ -5,6 +5,7 @@ import SwiftUI
 // SwiftUI in the system language instead of the language chosen in the app.
 struct MenuView: View {
     @EnvironmentObject private var store: TunnelStore
+    @EnvironmentObject private var updater: Updater
     @FocusState private var excludedFieldFocused: Bool
 
     var body: some View {
@@ -153,6 +154,9 @@ struct MenuView: View {
                 }
                 Button { store.error = nil } label: { Image(systemName: "xmark") }
                     .buttonStyle(.borderless)
+            } else if let notice = store.notice {
+                Label(notice, systemImage: "info.circle").foregroundStyle(.secondary).lineLimit(1)
+                Spacer(minLength: 0)
             } else if store.helper == .outdated {
                 Label(L("Helper is outdated"), systemImage: "exclamationmark.circle").foregroundStyle(.orange)
                 Spacer(minLength: 0)
@@ -213,6 +217,15 @@ struct MenuView: View {
 
             Spacer()
 
+            if updater.busy {
+                ProgressView().controlSize(.small)
+            } else if let release = updater.available {
+                Button(L("Update to %@", release.version), action: updater.installAvailable)
+                    .buttonStyle(.link)
+                    .font(.caption)
+                    .help(L("Download, install and relaunch; the VPN stays connected"))
+            }
+
             Menu {
                 Toggle(L("Launch at Login"), isOn: Binding(get: { store.launchAtLogin }, set: { store.launchAtLogin = $0 }))
                 Picker(L("Language"), selection: Binding(get: { store.language }, set: { store.language = $0 })) {
@@ -221,6 +234,8 @@ struct MenuView: View {
                 Toggle(L("Debug Log"), isOn: Binding(get: { store.debugLog }, set: { store.setDebugLog($0) }))
                     .disabled(store.helper != .ready)
                 Button(store.helper == .outdated ? L("Update Helper…") : L("Reinstall Helper…"), action: store.installHelper)
+                Button(L("Check for Updates…"), action: updater.checkNow)
+                    .disabled(updater.busy)
                 Divider()
                 // AppDelegate brings the tunnel down before the app exits.
                 Button(store.isConnected ? L("Disconnect VPN and Quit") : L("Quit")) { NSApp.terminate(nil) }

@@ -21,6 +21,15 @@ in System Settings → Privacy & Security → **Open Anyway**, or clear the quar
 xattr -dr com.apple.quarantine /Applications/AWGBar.app
 ```
 
+## Updates
+
+Settings menu → **Check for Updates…** looks at this repository's releases (betas included); the
+app never checks on its own. If there is a newer version, **Update to x.y.z** appears in the
+window: it downloads the DMG, verifies it against the release's `SHA256SUMS` and its code
+signature, replaces the app in place and relaunches it, keeping the VPN connected. The app must be
+in a folder you can write to, such as `/Applications`. The checksum guards against a broken
+download; authenticity relies on HTTPS to GitHub.
+
 ## Build from source
 
 Requirements: macOS 14 or later, Xcode Command Line Tools (Swift), Go, git, curl.
@@ -30,7 +39,7 @@ make install
 ```
 
 This builds `amneziawg-go`, `awg`, `awg-quick` and a self-contained `bash` from pinned sources,
-assembles `build/AWGBar.app` and copies it to `~/Applications`. Open it, click the shield in the
+assembles `build/AWGBar.app` and copies it to `/Applications`. Open it, click the shield in the
 menu bar and press **Install Helper**: macOS asks for your password once.
 
 Remove the helper and the app (tunnel configs are kept unless you run the uninstall script with `--purge`):
