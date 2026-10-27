@@ -16,13 +16,9 @@ struct MenuView: View {
             case .missing, .unreachable:
                 helperCard
             case .ready, .outdated:
-                if store.tunnels.isEmpty {
-                    emptyState
-                } else {
-                    powerButton
-                    tunnelList
-                    splitTunnel
-                }
+                powerButton
+                tunnelList
+                splitTunnel
             }
             infoRow
             Divider()
@@ -78,24 +74,29 @@ struct MenuView: View {
         .help(store.isConnected ? L("Disconnect") : L("Connect"))
     }
 
-    /// At most `visibleTunnelRows` rows are shown and the rest scroll, so a long list can't push
-    /// the window past the bottom of the screen.
+    /// Always the height of `visibleTunnelRows` rows, whether there are none, two or fifty:
+    /// longer lists scroll, and adding or deleting a tunnel never resizes the window.
     private var tunnelList: some View {
-        let rows = CGFloat(min(store.tunnels.count, visibleTunnelRows))
-        return ScrollView {
-            VStack(spacing: tunnelRowSpacing) {
-                ForEach(store.tunnels) { tunnel in
-                    TunnelRow(tunnel: tunnel, selected: tunnel.name == store.selected)
-                        .onTapGesture { store.select(tunnel.name) }
-                        .contextMenu {
-                            Button(L("Rename…")) { store.rename(tunnel) }
-                            Button(L("Delete…"), role: .destructive) { store.delete(tunnel) }
+        Group {
+            if store.tunnels.isEmpty {
+                emptyState
+            } else {
+                ScrollView {
+                    VStack(spacing: tunnelRowSpacing) {
+                        ForEach(store.tunnels) { tunnel in
+                            TunnelRow(tunnel: tunnel, selected: tunnel.name == store.selected)
+                                .onTapGesture { store.select(tunnel.name) }
+                                .contextMenu {
+                                    Button(L("Rename…")) { store.rename(tunnel) }
+                                    Button(L("Delete…"), role: .destructive) { store.delete(tunnel) }
+                                }
                         }
+                    }
                 }
+                .scrollBounceBehavior(.basedOnSize)
             }
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(height: rows * tunnelRowHeight + (rows - 1) * tunnelRowSpacing)
+        .frame(height: tunnelListHeight, alignment: .top)
         .disabled(store.busy)
     }
 
@@ -236,6 +237,7 @@ struct MenuView: View {
 private let visibleTunnelRows = 5
 private let tunnelRowHeight: CGFloat = 30
 private let tunnelRowSpacing: CGFloat = 2
+private let tunnelListHeight = CGFloat(visibleTunnelRows) * tunnelRowHeight + CGFloat(visibleTunnelRows - 1) * tunnelRowSpacing
 
 private struct TunnelRow: View {
     let tunnel: TunnelInfo

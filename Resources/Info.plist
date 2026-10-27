@@ -8,14 +8,16 @@
 	<string>AWGBar</string>
 	<key>CFBundleDisplayName</key>
 	<string>AWGBar</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleExecutable</key>
 	<string>AWGBar</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.0.1</string>
+	<string>0.0.2</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<!-- English is the default; the in-app setting picks the language, not the system. -->
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>

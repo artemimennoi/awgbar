@@ -54,7 +54,7 @@ app: deps
 	cp .build/release/AWGBar $(APP)/Contents/MacOS/
 	cp .build/release/awgbar-helper $(RES)/helper/local.awgbar.helper
 	cp Resources/install-helper.sh Resources/uninstall-helper.sh $(RES)/
-	cp -R Resources/ru.lproj $(RES)/
+	cp -R Resources/ru.lproj Resources/AppIcon.icns $(RES)/
 	cp $(AWG_GO)/amneziawg-go $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash $(RES)/bin/
 	# Fixes leftover /var/run/wireguard paths, keeps awg-quick from blocking under launchd,
 	# and routes split-tunnel exclusions like endpoints. See the comments in the patch.
