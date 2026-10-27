@@ -104,8 +104,11 @@ struct TunnelConfig {
             ok = items().allSatisfy { !$0.contains("*") && CIDR($0) != nil }
         case "DNS":
             ok = items().allSatisfy { $0.range(of: "^[A-Za-z0-9.:_-]+$", options: .regularExpression) != nil }
-        case "MTU", "ListenPort", "PersistentKeepalive":
+        case "MTU", "ListenPort":
             ok = value.range(of: "^[0-9]{1,5}$", options: .regularExpression) != nil
+        case "PersistentKeepalive":
+            // AmneziaWG randomizes keepalive within "lo-hi" (u16_range_from_string in amneziawg-tools).
+            ok = value.range(of: "^[0-9]{1,5}(-[0-9]{1,5})?$", options: .regularExpression) != nil
         case "Endpoint":
             ok = value.range(of: "^[A-Za-z0-9.:\\[\\]_-]+$", options: .regularExpression) != nil
         default:
