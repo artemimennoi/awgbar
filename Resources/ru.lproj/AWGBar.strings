@@ -50,6 +50,7 @@
 "Launch at login: %@" = "Автозапуск: %@";
 
 /* Import */
+"Already added as %@" = "Уже добавлен как %@";
 "Expected a vpn://… key or an AmneziaWG config" = "Нужен ключ vpn://… или конфиг AmneziaWG";
 "Broken key: not base64" = "Ключ повреждён: это не base64";
 "Broken key: cannot unpack it" = "Ключ повреждён: не удалось распаковать";

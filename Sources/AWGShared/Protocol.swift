@@ -17,7 +17,7 @@ public enum HelperPaths {
     public static var debugLogFlag: String { support + "/debug-log" }
     public static let helperBinary = "/Library/PrivilegedHelperTools/\(label)"
     /// Bump when the helper or the bundled tools change, so the app offers to reinstall.
-    public static let version = 5
+    public static let version = 6
 }
 
 public struct Request: Codable, Sendable {
@@ -86,6 +86,8 @@ public struct Response: Codable, Sendable {
     public var debugLog: Bool?
     public var stats: TunnelStats?
     public var log: String?
+    /// Set on some failures so the app can word them itself: "duplicate:<tunnel name>".
+    public var code: String?
 
     public init(ok: Bool = true, error: String? = nil, version: Int? = nil, tunnels: [TunnelInfo]? = nil,
                 excluded: [String]? = nil, debugLog: Bool? = nil, stats: TunnelStats? = nil, log: String? = nil) {

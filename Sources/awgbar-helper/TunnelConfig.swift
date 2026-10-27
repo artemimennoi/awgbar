@@ -121,6 +121,13 @@ struct TunnelConfig {
         return title.isEmpty ? nil : String(title.prefix(64))
     }
 
+    /// Same client key talking to the same peers is the same tunnel, whatever its title or endpoint.
+    var identity: String {
+        let privateKey = interface.first { $0.key == "PrivateKey" }?.value ?? ""
+        let peerKeys = peers.compactMap { $0.first { $0.key == "PublicKey" }?.value }.sorted()
+        return ([privateKey] + peerKeys).joined(separator: "|")
+    }
+
     var endpoint: String? {
         peers.lazy.compactMap { $0.first { $0.key == "Endpoint" }?.value }.first
     }

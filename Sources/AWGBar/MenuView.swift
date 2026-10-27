@@ -78,17 +78,24 @@ struct MenuView: View {
         .help(store.isConnected ? L("Disconnect") : L("Connect"))
     }
 
+    /// At most `visibleTunnelRows` rows are shown and the rest scroll, so a long list can't push
+    /// the window past the bottom of the screen.
     private var tunnelList: some View {
-        VStack(spacing: 2) {
-            ForEach(store.tunnels) { tunnel in
-                TunnelRow(tunnel: tunnel, selected: tunnel.name == store.selected)
-                    .onTapGesture { store.select(tunnel.name) }
-                    .contextMenu {
-                        Button(L("Rename…")) { store.rename(tunnel) }
-                        Button(L("Delete…"), role: .destructive) { store.delete(tunnel) }
-                    }
+        let rows = CGFloat(min(store.tunnels.count, visibleTunnelRows))
+        return ScrollView {
+            VStack(spacing: tunnelRowSpacing) {
+                ForEach(store.tunnels) { tunnel in
+                    TunnelRow(tunnel: tunnel, selected: tunnel.name == store.selected)
+                        .onTapGesture { store.select(tunnel.name) }
+                        .contextMenu {
+                            Button(L("Rename…")) { store.rename(tunnel) }
+                            Button(L("Delete…"), role: .destructive) { store.delete(tunnel) }
+                        }
+                }
             }
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(height: rows * tunnelRowHeight + (rows - 1) * tunnelRowSpacing)
         .disabled(store.busy)
     }
 
@@ -226,6 +233,10 @@ struct MenuView: View {
     }
 }
 
+private let visibleTunnelRows = 5
+private let tunnelRowHeight: CGFloat = 30
+private let tunnelRowSpacing: CGFloat = 2
+
 private struct TunnelRow: View {
     let tunnel: TunnelInfo
     let selected: Bool
@@ -241,7 +252,7 @@ private struct TunnelRow: View {
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .frame(height: tunnelRowHeight)
         .background(selected ? Color.secondary.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
     }

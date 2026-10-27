@@ -6,6 +6,7 @@ import ServiceManagement
 struct HelperFailure: LocalizedError {
     let message: String
     let log: String?
+    var code: String?
     var errorDescription: String? { message }
 }
 
@@ -57,7 +58,9 @@ final class TunnelStore: ObservableObject {
 
     private func send(_ request: Request, timeout: Int = 60) async throws -> Response {
         let response = try await Task.detached { try HelperClient.send(request, timeout: timeout) }.value
-        guard response.ok else { throw HelperFailure(message: response.error ?? L("Helper error"), log: response.log) }
+        guard response.ok else {
+            throw HelperFailure(message: response.error ?? L("Helper error"), log: response.log, code: response.code)
+        }
         return response
     }
 
@@ -238,8 +241,16 @@ final class TunnelStore: ObservableObject {
             for item in try KeyImport.parse(text, suggestedName: suggestedName) {
                 let name = KeyImport.tunnelName(from: item.name, taken: taken)
                 taken.insert(name)
-                last = try await send(Request(.importConfig, name: name, config: item.config, title: item.name))
-                selected = name
+                do {
+                    last = try await send(Request(.importConfig, name: name, config: item.config, title: item.name))
+                    selected = name
+                } catch let failure as HelperFailure where failure.code?.hasPrefix("duplicate:") == true {
+                    // Point at the copy we already have instead of adding another one.
+                    let existing = String(failure.code!.dropFirst("duplicate:".count))
+                    selected = existing
+                    let title = tunnels.first { $0.name == existing }?.displayName ?? existing
+                    throw HelperFailure(message: L("Already added as %@", title), log: nil)
+                }
             }
             return last
         }

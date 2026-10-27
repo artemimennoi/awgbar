@@ -22,9 +22,12 @@ let allowedUID: uid_t = {
 struct HelperError: LocalizedError {
     let message: String
     var log: String?
-    init(_ message: String, log: String? = nil) {
+    /// Machine-readable reason for errors the app shows in its own language (see Response.code).
+    var code: String?
+    init(_ message: String, log: String? = nil, code: String? = nil) {
         self.message = message
         self.log = log
+        self.code = code
     }
     var errorDescription: String? { message }
 }
@@ -274,6 +277,9 @@ func handle(_ request: Request) throws -> Response {
     case .importConfig:
         let name = try requireName(request, mustExist: false)
         var config = try TunnelConfig(parsing: request.config ?? "")
+        if let existing = listTunnels().first(where: { $0.name != name && (try? loadConfig($0.name))?.identity == config.identity }) {
+            throw HelperError("Already added as \(existing.displayName)", code: "duplicate:\(existing.name)")
+        }
         config.title = TunnelConfig.cleanTitle(request.title)
         try writeSecret(confPath(name), config.render(includeTitle: true))
         log("imported \(name)" + (config.dropped.isEmpty ? "" : ", ignored keys \(config.dropped.joined(separator: ", "))"))
@@ -342,7 +348,9 @@ func serveConnection(_ client: Int32) {
             let request = try JSONDecoder().decode(Request.self, from: UnixSocket.readAll(client))
             response = try handle(request)
         } catch let error as HelperError {
-            response = .failure(error.message, log: error.log)
+            var failure = Response.failure(error.message, log: error.log)
+            failure.code = error.code
+            response = failure
         } catch {
             response = .failure(error.localizedDescription)
         }
