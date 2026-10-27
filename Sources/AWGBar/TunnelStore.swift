@@ -33,8 +33,23 @@ final class TunnelStore: ObservableObject {
         didSet { L10n.language = language }
     }
     @Published private(set) var busy = false
-    @Published var error: String?
+    @Published var error: String? {
+        didSet { scheduleErrorDismissal() }
+    }
     @Published var errorLog: String?
+    private var errorDismissal: Task<Void, Never>?
+
+    /// Errors fade out like a notification banner; a new error restarts the clock.
+    private func scheduleErrorDismissal() {
+        errorDismissal?.cancel()
+        guard let shown = error else { return }
+        errorDismissal = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled, let self, self.error == shown else { return }
+            self.error = nil
+            self.errorLog = nil
+        }
+    }
     @Published var selected: String? {
         didSet { UserDefaults.standard.set(selected, forKey: "selected") }
     }
