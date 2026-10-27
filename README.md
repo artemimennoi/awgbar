@@ -10,13 +10,15 @@ helper (a LaunchDaemon) that runs `amneziawg-go` and `awg-quick`.
 
 ## Install from a release
 
-Apple Silicon, macOS 14 or later. Download `awgbar-<version>-macos-arm64.zip` from
-[Releases](https://github.com/artemimennoi/awgbar/releases), unzip it and move `AWGBar.app` to
-`~/Applications`. The app is ad-hoc signed, not notarized, so macOS blocks it the first time;
-clear the quarantine flag once:
+awgbar is in beta: releases are published as pre-releases.
+
+Apple Silicon, macOS 14 or later. Download `awgbar-<version>-macos-arm64.dmg` from
+[Releases](https://github.com/artemimennoi/awgbar/releases), open it and drag `AWGBar` to
+`Applications`. The app is ad-hoc signed, not notarized, so macOS blocks the first launch: allow it
+in System Settings → Privacy & Security → **Open Anyway**, or clear the quarantine flag once:
 
 ```bash
-xattr -dr com.apple.quarantine ~/Applications/AWGBar.app
+xattr -dr com.apple.quarantine /Applications/AWGBar.app
 ```
 
 ## Build from source

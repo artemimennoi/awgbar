@@ -72,14 +72,18 @@ install: app
 
 # Release assets: the app, plus the corresponding source of the GPL parts it ships.
 dist: app
-	rm -rf $(DIST) && mkdir -p $(DIST)/src
-	ditto -c -k --keepParent $(APP) $(DIST)/awgbar-$(VERSION)-macos-arm64.zip
+	rm -rf $(DIST) && mkdir -p $(DIST)/src $(DIST)/dmg
+	# Standard drag-to-Applications disk image.
+	cp -R $(APP) $(DIST)/dmg/
+	ln -s /Applications $(DIST)/dmg/Applications
+	hdiutil create -quiet -volname "awgbar $(VERSION)" -srcfolder $(DIST)/dmg -ov -format UDZO $(DIST)/awgbar-$(VERSION)-macos-arm64.dmg
+	rm -rf $(DIST)/dmg
 	git -C $(AWG_TOOLS) archive --prefix=amneziawg-tools/ -o "$(CURDIR)/$(DIST)/src/amneziawg-tools-$(AWG_TOOLS_REV).tar.gz" HEAD
 	git -C $(AWG_GO) archive --prefix=amneziawg-go/ -o "$(CURDIR)/$(DIST)/src/amneziawg-go-$(AWG_GO_REV).tar.gz" HEAD
 	cp $(DEPS)/bash-$(BASH_VER).tar.gz Resources/awg-quick-darwin.patch THIRD_PARTY_NOTICES.md $(DIST)/src/
 	tar -czf $(DIST)/awgbar-$(VERSION)-third-party-sources.tar.gz -C $(DIST) src
 	rm -rf $(DIST)/src
-	cd $(DIST) && shasum -a 256 *.zip *.tar.gz > SHA256SUMS
+	cd $(DIST) && shasum -a 256 *.dmg *.tar.gz > SHA256SUMS
 	@ls -la $(DIST)
 
 uninstall:
