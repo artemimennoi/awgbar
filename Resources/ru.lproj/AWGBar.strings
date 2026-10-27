@@ -1,0 +1,62 @@
+/* Russian. Keys are the English strings passed to L() in Sources/AWGBar. */
+
+/* Window */
+"Please wait…" = "Подождите…";
+"Connected · %@" = "Подключено · %@";
+"Disconnected" = "Отключено";
+"Connect" = "Подключить";
+"Disconnect" = "Отключить";
+"Delete…" = "Удалить…";
+"Rename…" = "Переименовать…";
+"Rename Tunnel" = "Переименовать туннель";
+"Rename" = "Переименовать";
+"Bypass VPN" = "Мимо VPN";
+"none" = "нет";
+"Subnets that go around the VPN" = "Подсети, которые идут мимо VPN";
+"Subnets separated by commas. Enter applies, Esc cancels; an active tunnel reconnects." = "Подсети через запятую. Enter — применить, Esc — отмена; активный туннель переподключится.";
+"Apply" = "Применить";
+"Log" = "Лог";
+"Copy the error and the awg-quick log to the clipboard" = "Скопировать ошибку и лог awg-quick в буфер обмена";
+"Helper is outdated" = "Помощник устарел";
+"Update" = "Обновить";
+"No tunnels" = "Нет туннелей";
+"Copy a vpn://… key or choose a .conf file" = "Скопируй ключ vpn://… или выбери файл .conf";
+"From Clipboard" = "Из буфера обмена";
+"From File…" = "Из файла…";
+"Helper required" = "Нужен помощник";
+"Bringing up the tunnel, routes and DNS needs root. The helper is installed once; macOS will ask for your password." = "Чтобы поднимать туннель, маршруты и DNS, нужен root. Помощник ставится один раз, система спросит пароль.";
+"The helper is installed but not responding: %@" = "Помощник установлен, но не отвечает: %@";
+"Install Helper" = "Установить помощник";
+"Add Tunnel" = "Добавить туннель";
+
+/* Settings menu */
+"Launch at Login" = "Запускать при входе";
+"Language" = "Язык";
+"Debug Log" = "Отладочный лог";
+"Update Helper…" = "Обновить помощник…";
+"Reinstall Helper…" = "Переустановить помощник…";
+"Disconnect VPN and Quit" = "Отключить VPN и выйти";
+"Quit" = "Выйти";
+
+/* Alerts and errors */
+"Helper error" = "Ошибка помощника";
+"Delete tunnel %@?" = "Удалить туннель %@?";
+"The config will be deleted permanently." = "Конфиг будет удалён без возможности восстановления.";
+"Delete" = "Удалить";
+"Cancel" = "Отмена";
+"Not a subnet: %@" = "Не похоже на подсеть: %@";
+"Choose an AmneziaWG .conf or a file with a vpn:// key" = "Выбери .conf AmneziaWG или файл с ключом vpn://";
+"Cannot read %@" = "Не удалось прочитать %@";
+"Launch at login: %@" = "Автозапуск: %@";
+
+/* Import */
+"Expected a vpn://… key or an AmneziaWG config" = "Нужен ключ vpn://… или конфиг AmneziaWG";
+"Broken key: not base64" = "Ключ повреждён: это не base64";
+"Broken key: cannot unpack it" = "Ключ повреждён: не удалось распаковать";
+"This is an Amnezia Premium/Free key: its config is issued by Amnezia's server at connect time and cannot be imported" = "Это ключ Amnezia Premium/Free: конфиг выдаётся их сервером при подключении, импортировать его нельзя";
+"The key has no ready AmneziaWG config. If it is an admin key, connect once in AmneziaVPN and share the connection in AmneziaWG format" = "В ключе нет готового конфига AmneziaWG. Если это админский ключ, подключись один раз в AmneziaVPN и поделись подключением в формате AmneziaWG";
+
+/* Helper installation */
+"awgbar is installing a helper that brings up the VPN tunnel." = "awgbar устанавливает помощник, который поднимает VPN-туннель.";
+"install-helper.sh is missing from the app; build it with make" = "В приложении нет install-helper.sh — собери его через make";
+"Helper installation failed" = "Установка помощника не удалась";

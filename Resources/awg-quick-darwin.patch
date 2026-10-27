@@ -1,0 +1,44 @@
+--- a/darwin.bash	2026-10-27 23:54:56
++++ b/darwin.bash	2026-10-27 23:54:56
+@@ -89,7 +89,8 @@
+ 	local line
+ 	while read -r line; do
+ 		if [[ $line =~ ^\s*domain\ =\  ]]; then
+-			LAUNCHED_BY_LAUNCHD=1
++			# AWGBar: the helper is a LaunchDaemon, but awg-quick must still return after up.
++			: LAUNCHED_BY_LAUNCHD=1
+ 			break
+ 		fi
+ 	done < <(launchctl procinfo $$ 2>/dev/null)
+@@ -113,7 +114,7 @@
+ 	[[ -f "/var/run/amneziawg/$INTERFACE.name" ]] || return 1
+ 	interface="$(< "/var/run/amneziawg/$INTERFACE.name")"
+ 	[[ -n $interface && -S "/var/run/amneziawg/$interface.sock" ]] || return 1
+-	diff=$(( $(stat -f %m "/var/run/amneziawg/$interface.sock" 2>/dev/null || echo 200) - $(stat -f %m "/var/run/wireguard/$INTERFACE.name" 2>/dev/null || echo 100) ))
++	diff=$(( $(stat -f %m "/var/run/amneziawg/$interface.sock" 2>/dev/null || echo 200) - $(stat -f %m "/var/run/amneziawg/$INTERFACE.name" 2>/dev/null || echo 100) ))
+ 	[[ $diff -ge 2 || $diff -le -2 ]] && return 1
+ 	REAL_INTERFACE="$interface"
+ 	echo "[+] Interface for $INTERFACE is $REAL_INTERFACE" >&2
+@@ -153,8 +154,8 @@
+ }
+ 
+ del_if() {
+-	[[ -z $REAL_INTERFACE ]] || cmd rm -f "/var/run/wireguard/$REAL_INTERFACE.sock"
+-	cmd rm -f "/var/run/wireguard/$INTERFACE.name"
++	[[ -z $REAL_INTERFACE ]] || cmd rm -f "/var/run/amneziawg/$REAL_INTERFACE.sock"
++	cmd rm -f "/var/run/amneziawg/$INTERFACE.name"
+ }
+ 
+ up_if() {
+@@ -213,6 +214,11 @@
+ 		[[ $endpoint =~ ^\[?([a-z0-9:.]+)\]?:[0-9]+$ ]] || continue
+ 		ENDPOINTS+=( "${BASH_REMATCH[1]}" )
+ 	done < <(wg show "$REAL_INTERFACE" endpoints)
++	# AWGBar: split-tunnel exclusions reuse the endpoint routes: pinned to the physical gateway,
++	# moved by the route monitor when the network changes and deleted by del_routes.
++	local excluded
++	read -ra excluded <<< "${AWGBAR_EXCLUDED:-}"
++	ENDPOINTS+=( "${excluded[@]}" )
+ }
+ 
+ declare -A SERVICE_DNS
