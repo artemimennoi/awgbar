@@ -26,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -166,6 +167,7 @@ fun TunnelGroup(
     names: List<String>,
     selected: String?,
     active: String?,
+    locked: Boolean,
     onSelect: (String) -> Unit,
     onRename: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -175,12 +177,17 @@ fun TunnelGroup(
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         names.forEachIndexed { i, name ->
             val isSelected = name == selected
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = groupShape(i, count), onClick = { onSelect(name) }) {
+            // While connected the other tunnels are dimmed and can't be picked; their menu still works.
+            val dimmed = locked && !isSelected
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainer, shape = groupShape(i, count),
+                enabled = !locked, onClick = { onSelect(name) },
+            ) {
                 Row(Modifier.padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     val bg by animateColorAsState(
                         if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh, label = "dot",
                     )
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
+                    Box(Modifier.alpha(if (dimmed) 0.45f else 1f).size(40.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
                         Icon(
                             if (isSelected) Icons.Rounded.Check else Icons.Rounded.Shield, null,
                             tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -188,7 +195,7 @@ fun TunnelGroup(
                         )
                     }
                     Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
+                    Column(Modifier.weight(1f).alpha(if (dimmed) 0.45f else 1f)) {
                         Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         val host = remember(name) { Vpn.endpointHost(name) }
                         val sub = if (name == active) stringResource(R.string.active) else host

@@ -43,6 +43,8 @@ public:
     QStringList excluded() const { return m_excluded; }
     bool debugLog() const { return m_debugLog; }
     bool busy() const { return m_busy; }
+    // Switching tunnels needs the VPN off first.
+    bool selectionLocked() const { return m_busy || active(); }
     QString error() const { return m_error; }
     QString errorLog() const { return m_errorLog; }
 

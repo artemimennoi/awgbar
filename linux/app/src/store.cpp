@@ -164,11 +164,11 @@ void Store::toggle()
 
 void Store::select(const QString &name)
 {
+    // Switching tunnels needs the VPN off first.
+    if (selectionLocked())
+        return;
     m_selected = name;
     QSettings().setValue(QStringLiteral("selected"), name);
-    // Picking another tunnel while connected switches to it; the helper drops the old one.
-    if (const Tunnel *on = active(); on && on->name != name)
-        perform(request(QStringLiteral("up"), name));
     emit changed();
 }
 

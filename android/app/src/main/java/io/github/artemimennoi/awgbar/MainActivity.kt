@@ -166,14 +166,14 @@ private fun MainScreen(
             }
             item { SectionHeader(R.string.tunnels) }
             item {
+                // Switching tunnels needs the VPN off first.
+                val locked = state.active != null || state.busy
                 TunnelGroup(
                     names = names,
-                    selected = selected,
+                    selected = state.active ?: selected,
                     active = state.active,
-                    onSelect = { name ->
-                        Vpn.store.selected = name; selected = name
-                        if (state.active != null && state.active != name) Vpn.connect(name)
-                    },
+                    locked = locked,
+                    onSelect = { name -> if (!locked) { Vpn.store.selected = name; selected = name } },
                     onRename = { renaming = it },
                     onDelete = { deleting = it },
                     onAdd = { adding = true },

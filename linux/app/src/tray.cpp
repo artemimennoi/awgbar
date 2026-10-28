@@ -94,8 +94,9 @@ void Tray::rebuild()
         }
     }
     m_tunnelsSeparator->setVisible(!m_store->tunnels().isEmpty());
+    // While connected only the active tunnel stays enabled, so it still reads as the chosen one.
     for (QAction *a : m_tunnels->actions())
-        a->setEnabled(!busy);
+        a->setEnabled(!m_store->selectionLocked() || (!busy && a->isChecked()));
 
     const bool usable = m_store->helper() == Store::Helper::Ready || m_store->helper() == Store::Helper::Outdated;
     m_toggle->setText(active ? L("Disconnect") : L("Connect"));

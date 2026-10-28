@@ -179,12 +179,12 @@ final class TunnelStore: ObservableObject {
         busy = false
     }
 
+    /// Switching tunnels needs the VPN off first: a tap on another row while connected does nothing.
+    var selectionLocked: Bool { busy || active != nil }
+
     func select(_ name: String) {
+        guard !selectionLocked else { return }
         selected = name
-        // Picking another tunnel while connected switches to it; the helper drops the old one.
-        if let active, active.name != name {
-            Task { await perform { [self] in try await send(Request(.up, name: name)) } }
-        }
     }
 
     func delete(_ tunnel: TunnelInfo) {
