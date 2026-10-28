@@ -1,7 +1,9 @@
-# Builds AWGBar.app with its own amneziawg-go, awg (wg), awg-quick and a self-contained bash.
+# Builds "AWG Bar.app" with its own amneziawg-go, awg (wg), awg-quick and a self-contained bash.
 # Needs: Swift (Command Line Tools are enough), Go, git, curl.
 
-APP        := build/AWGBar.app
+# .noindex keeps Spotlight from listing a second copy from the build directory.
+BUILD      := build.noindex
+APP        := $(BUILD)/AWG Bar.app
 RES        := $(APP)/Contents/Resources
 DEPS       := .deps
 AWG_GO     := $(DEPS)/amneziawg-go
@@ -14,7 +16,7 @@ AWG_GO_REV    ?= b5928efb6ca19f0153958460c3d141f04abc5c2e
 AWG_TOOLS_REV ?= ee0f0a9aa34ff0a0da4b3433b9512781cfe02843
 
 VERSION    := $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)
-DIST       := build/dist
+DIST       := $(BUILD)/dist
 
 .PHONY: all app icon deps install uninstall dist clean distclean
 
@@ -51,47 +53,49 @@ XCODE ?= /Applications/Xcode.app/Contents/Developer
 
 icon:
 	python3 Resources/make-icon.py
-	rm -rf build/icon && mkdir -p build/icon
-	DEVELOPER_DIR=$(XCODE) xcrun actool Resources/AppIcon.icon --compile build/icon \
+	rm -rf $(BUILD)/icon && mkdir -p $(BUILD)/icon
+	DEVELOPER_DIR=$(XCODE) xcrun actool Resources/AppIcon.icon --compile $(BUILD)/icon \
 		--app-icon AppIcon --platform macosx --minimum-deployment-target 26.0 \
-		--output-partial-info-plist build/icon/partial.plist >/dev/null
-	cp build/icon/Assets.car build/icon/AppIcon.icns Resources/
+		--output-partial-info-plist $(BUILD)/icon/partial.plist >/dev/null
+	cp $(BUILD)/icon/Assets.car $(BUILD)/icon/AppIcon.icns Resources/
 
 deps: $(AWG_GO)/amneziawg-go $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash
 
 app: deps
 	swift build -c release
-	rm -rf $(APP)
-	mkdir -p $(APP)/Contents/MacOS $(RES)/bin $(RES)/helper
-	cp Resources/Info.plist $(APP)/Contents/
-	cp .build/release/AWGBar $(APP)/Contents/MacOS/
-	cp .build/release/awgbar-helper $(RES)/helper/local.awgbar.helper
-	cp Resources/install-helper.sh Resources/uninstall-helper.sh $(RES)/
-	cp -R Resources/ru.lproj Resources/AppIcon.icns Resources/Assets.car $(RES)/
-	cp $(AWG_GO)/amneziawg-go $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash $(RES)/bin/
+	rm -rf "$(APP)"
+	mkdir -p "$(APP)/Contents/MacOS" "$(RES)/bin" "$(RES)/helper"
+	cp Resources/Info.plist "$(APP)/Contents/"
+	cp .build/release/AWGBar "$(APP)/Contents/MacOS/"
+	cp .build/release/awgbar-helper "$(RES)/helper/local.awgbar.helper"
+	cp Resources/install-helper.sh Resources/uninstall-helper.sh "$(RES)/"
+	cp -R Resources/ru.lproj Resources/AppIcon.icns Resources/Assets.car "$(RES)/"
+	cp $(AWG_GO)/amneziawg-go $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash "$(RES)/bin/"
 	# Fixes leftover /var/run/wireguard paths, keeps awg-quick from blocking under launchd,
 	# and routes split-tunnel exclusions like endpoints. See the comments in the patch.
-	patch -s -o $(RES)/bin/awg-quick $(AWG_TOOLS)/src/wg-quick/darwin.bash Resources/awg-quick-darwin.patch
-	chmod 0755 $(RES)/bin/* $(RES)/*.sh
-	codesign --force --sign - $(RES)/bin/* $(RES)/helper/local.awgbar.helper
-	codesign --force --sign - $(APP)
+	patch -s -o "$(RES)/bin/awg-quick" $(AWG_TOOLS)/src/wg-quick/darwin.bash Resources/awg-quick-darwin.patch
+	chmod 0755 "$(RES)"/bin/* "$(RES)"/*.sh
+	codesign --force --sign - "$(RES)"/bin/* "$(RES)/helper/local.awgbar.helper"
+	codesign --force --sign - "$(APP)"
 	@echo "built $(APP)"
 
 # Same place the DMG installs to, so updating replaces the app instead of adding a second copy.
-# /Applications is writable by admin users; 0.0.3 and older installed into ~/Applications.
+# /Applications is writable by admin users; 0.0.3 and older installed into ~/Applications,
+# and before 0.1.2 the app was AWGBar.app.
+OLD_APPS := /Applications/AWGBar.app $(HOME)/Applications/AWGBar.app
+
 install: app
-	rm -rf $(HOME)/Applications/AWGBar.app
-	rm -rf /Applications/AWGBar.app
-	cp -R $(APP) /Applications/
-	@echo "installed to /Applications/AWGBar.app — open it and press Install Helper"
+	rm -rf $(OLD_APPS) "/Applications/AWG Bar.app"
+	cp -R "$(APP)" /Applications/
+	@echo "installed to /Applications/AWG Bar.app — open it and press Install Helper"
 
 # Release assets: the app, plus the corresponding source of the GPL parts it ships.
 dist: app
 	rm -rf $(DIST) && mkdir -p $(DIST)/src $(DIST)/dmg
 	# Standard drag-to-Applications disk image.
-	cp -R $(APP) $(DIST)/dmg/
+	cp -R "$(APP)" $(DIST)/dmg/
 	ln -s /Applications $(DIST)/dmg/Applications
-	hdiutil create -quiet -volname "awgbar $(VERSION)" -srcfolder $(DIST)/dmg -ov -format UDZO $(DIST)/awgbar-$(VERSION)-macos-arm64.dmg
+	hdiutil create -quiet -volname "AWG Bar $(VERSION)" -srcfolder $(DIST)/dmg -ov -format UDZO $(DIST)/awgbar-$(VERSION)-macos-arm64.dmg
 	rm -rf $(DIST)/dmg
 	git -C $(AWG_TOOLS) archive --prefix=amneziawg-tools/ -o "$(CURDIR)/$(DIST)/src/amneziawg-tools-$(AWG_TOOLS_REV).tar.gz" HEAD
 	git -C $(AWG_GO) archive --prefix=amneziawg-go/ -o "$(CURDIR)/$(DIST)/src/amneziawg-go-$(AWG_GO_REV).tar.gz" HEAD
@@ -103,10 +107,10 @@ dist: app
 
 uninstall:
 	sudo bash Resources/uninstall-helper.sh
-	rm -rf /Applications/AWGBar.app $(HOME)/Applications/AWGBar.app
+	rm -rf $(OLD_APPS) "/Applications/AWG Bar.app"
 
 clean:
-	rm -rf build .build
+	rm -rf build $(BUILD) .build
 
 distclean: clean
 	rm -rf $(DEPS)
