@@ -91,6 +91,8 @@ struct MenuView: View {
                     VStack(spacing: tunnelRowSpacing) {
                         ForEach(store.tunnels) { tunnel in
                             TunnelRow(tunnel: tunnel, selected: tunnel.name == store.selected, selection: selection)
+                                .opacity(store.selectionLocked && tunnel.name != store.selected ? 0.45 : 1)
+                                .help(store.selectionLocked && tunnel.name != store.selected ? L("Disconnect to switch tunnels") : "")
                                 .onTapGesture { withAnimation(.smooth) { store.select(tunnel.name) } }
                                 .contextMenu {
                                     Button(L("Rename…")) { store.rename(tunnel) }

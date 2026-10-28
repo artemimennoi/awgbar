@@ -386,6 +386,11 @@ void Window::rebuild()
             // The row handles clicks; the radio button only shows which tunnel is chosen.
             radio->setAttribute(Qt::WA_TransparentForMouseEvents);
             radio->setFocusPolicy(Qt::NoFocus);
+            // Switching tunnels needs the VPN off first.
+            if (active && t.name != m_store->selected()) {
+                radio->setEnabled(false);
+                row->setToolTip(L("Disconnect to switch tunnels"));
+            }
             layout->addWidget(radio, 1);
             auto *more = new QToolButton;
             more->setIcon(QIcon::fromTheme(QStringLiteral("overflow-menu"),
