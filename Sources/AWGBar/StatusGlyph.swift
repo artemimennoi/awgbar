@@ -65,7 +65,7 @@ enum StatusGlyph {
     }
 
     /// The right half, top center to bottom tip; the left half is its mirror image.
-    private static func shieldPath() -> NSBezierPath {
+    static func shieldPath() -> NSBezierPath {
         let mirror = { (p: CGPoint) in CGPoint(x: 1024 - p.x, y: p.y) }
         let path = NSBezierPath()
         path.lineJoinStyle = .round
@@ -83,7 +83,7 @@ enum StatusGlyph {
     }
 
     /// Eight teeth with one pointing straight up, so the gear is symmetric too; the hole is even-odd.
-    private static func gearPath(center c: CGPoint, tip: CGFloat, root: CGFloat, hole: CGFloat) -> NSBezierPath {
+    static func gearPath(center c: CGPoint, tip: CGFloat, root: CGFloat, hole: CGFloat) -> NSBezierPath {
         let teeth = 8
         let step = 360 / CGFloat(teeth)
         let tipHalf = step * 0.42 / 2, rootHalf = step * 0.62 / 2

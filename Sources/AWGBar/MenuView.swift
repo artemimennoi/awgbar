@@ -54,23 +54,23 @@ struct MenuView: View {
         store.busy ? .orange : store.isConnected ? .green : .secondary.opacity(0.5)
     }
 
-    /// Clear glass when off, green-tinted glass when on; `interactive` makes it light up and
+    private var glyphState: StatusGlyph.State {
+        store.busy ? .busy : store.isConnected ? .on : .off
+    }
+
+    /// The app's shield on clear glass, like the Android app's hero; the state shows in the shield
+    /// and a soft halo instead of a solid green disc. `interactive` makes the glass light up and
     /// flex under the pointer like the system's own glass controls.
     private var powerButton: some View {
         Button(action: store.toggle) {
-            ZStack {
-                if store.busy {
-                    ProgressView().controlSize(.large)
-                } else {
-                    Image(systemName: "power")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(store.isConnected ? .white : .primary)
-                        .symbolEffect(.bounce, value: store.isConnected)
-                }
-            }
-            .frame(width: 88, height: 88)
-            .glassEffect(.regular.tint(store.isConnected ? .green : nil).interactive(), in: .circle)
-            .contentShape(Circle())
+            LogoShield(state: glyphState)
+                .frame(height: 50)
+                .id(glyphState)
+                .transition(.scale(scale: 0.85).combined(with: .opacity))
+                .frame(width: 88, height: 88)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .background { if glyphState != .off { Halo(color: store.busy ? .orange : .green, fast: store.busy) } }
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .disabled(store.busy || store.selected == nil)
@@ -288,7 +288,7 @@ private struct TunnelRow: View {
             Text(tunnel.displayName).lineLimit(1).truncationMode(.tail)
             Spacer()
             if tunnel.active {
-                Image(systemName: "checkmark.shield.fill").foregroundStyle(.green)
+                LogoShield(state: .on).frame(height: 16)
             }
         }
         .padding(.horizontal, 8)
@@ -301,6 +301,23 @@ private struct TunnelRow: View {
             }
         }
         .contentShape(Rectangle())
+    }
+}
+
+/// A soft ring behind the power button: breathing while connected, quicker while connecting.
+private struct Halo: View {
+    let color: Color
+    let fast: Bool
+
+    var body: some View {
+        Circle()
+            .fill(color.opacity(0.22))
+            .phaseAnimator([0.94, 1.14]) { ring, scale in
+                ring.scaleEffect(scale)
+            } animation: { _ in
+                .easeInOut(duration: fast ? 0.7 : 2.2)
+            }
+            .allowsHitTesting(false)
     }
 }
 
