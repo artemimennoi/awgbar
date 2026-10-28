@@ -56,4 +56,6 @@
     <string name="wallpaper_desc">Use the system Material You palette instead of AWG Bar\'s</string>
     <string name="name_rule">Latin letters, digits and _=+.- only, up to 15</string>
     <string name="rename_active">Disconnect before renaming the active tunnel</string>
+    <string name="import_exists">Already added: %1$s</string>
+    <string name="import_updated">Updated: %1$s</string>
 </resources>

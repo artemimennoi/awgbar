@@ -3,6 +3,13 @@ package io.github.artemimennoi.awgbar
 import android.content.Context
 import java.io.File
 
+/** What an import did: new tunnels, ones whose config changed, and ones that were already there as is. */
+data class ImportResult(
+    val added: MutableList<String> = mutableListOf(),
+    val updated: MutableList<String> = mutableListOf(),
+    val unchanged: MutableList<String> = mutableListOf(),
+)
+
 /** Saved tunnels: one sanitized .conf per tunnel in app-private storage, plus small preferences. */
 class TunnelStore(context: Context) {
     private val dir = File(context.filesDir, "tunnels").apply { mkdirs() }
@@ -34,17 +41,23 @@ class TunnelStore(context: Context) {
 
     fun importQr(data: ByteArray) = save(KeyImport.parseQr(data, "awg"))
 
-    private fun save(tunnels: List<ImportedTunnel>): List<String> {
-        val added = mutableListOf<String>()
+    private fun save(tunnels: List<ImportedTunnel>): ImportResult {
+        val result = ImportResult()
         for (t in tunnels) {
             val cfg = TunnelConfig.parse(t.config)
             val existing = names().firstOrNull { runCatching { read(it).identity }.getOrNull() == cfg.identity }
             val name = existing ?: KeyImport.tunnelName(t.name, names().toSet())
-            File(dir, "$name.conf").writeText(cfg.render())
-            added += name
+            val file = File(dir, "$name.conf")
+            val text = cfg.render()
+            when {
+                existing == null -> result.added += name
+                file.readText() == text -> { result.unchanged += name; continue }
+                else -> result.updated += name
+            }
+            file.writeText(text)
         }
-        added.firstOrNull()?.let { selected = it }
-        return added
+        (result.added + result.updated + result.unchanged).firstOrNull()?.let { selected = it }
+        return result
     }
 
     fun rename(old: String, new: String): Boolean {

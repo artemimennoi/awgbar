@@ -91,12 +91,19 @@ private fun MainScreen(
     fun say(text: String) { scope.launch { snackbar.currentSnackbarData?.dismiss(); snackbar.showSnackbar(text) } }
     fun reload() { names = Vpn.store.names(); selected = Vpn.store.selected }
 
-    fun importWith(block: () -> List<String>) {
+    fun importWith(block: () -> ImportResult) {
         try {
-            val added = block()
+            val result = block()
             reload()
             adding = false
-            say(context.resources.getQuantityString(R.plurals.imported, added.size, added.size))
+            val r = context.resources
+            say(
+                listOfNotNull(
+                    result.added.takeIf { it.isNotEmpty() }?.let { r.getQuantityString(R.plurals.imported, it.size, it.size) },
+                    result.updated.takeIf { it.isNotEmpty() }?.let { r.getString(R.string.import_updated, it.joinToString(", ")) },
+                    result.unchanged.takeIf { it.isNotEmpty() }?.let { r.getString(R.string.import_exists, it.joinToString(", ")) },
+                ).joinToString("\n"),
+            )
         } catch (e: ImportError) {
             say(context.getString(e.res))
         } catch (e: ConfigError) {
