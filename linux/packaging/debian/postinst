@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = configure ]; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl enable awgbar-helper.service >/dev/null 2>&1 || true
+    # On an upgrade the restart reconnects the tunnel that was up.
+    if [ -n "$2" ]; then
+        systemctl restart awgbar-helper.service >/dev/null 2>&1 || true
+    else
+        systemctl start awgbar-helper.service >/dev/null 2>&1 || true
+    fi
+fi
+
+exit 0

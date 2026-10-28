@@ -1,0 +1,17 @@
+Package: awgbar
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: Artem Imennoi <artemimennoi@gmail.com>
+Installed-Size: @SIZE@
+Depends: @DEPENDS@, systemd, polkitd | policykit-1, dbus
+Suggests: gnome-shell-extension-appindicator
+Section: net
+Priority: optional
+Homepage: https://github.com/artemimennoi/awgbar
+Description: AmneziaWG VPN client in the tray
+ AWG Bar connects to AmneziaWG servers from a tray icon: import an AmneziaVPN
+ key (vpn://...) or an AmneziaWG .conf and press Connect.
+ .
+ A small root service runs the tunnel (amneziawg-go, built in) and watches
+ sleep, wake-up and network changes, so the VPN comes back by itself after the
+ laptop wakes up or moves to another network.

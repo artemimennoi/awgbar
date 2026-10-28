@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Who may connect, disconnect and manage tunnels through awgbar-helper. Like NetworkManager:
+     the user sitting at the machine needs no password, anyone else needs an administrator's. -->
+<policyconfig>
+  <vendor>AWG Bar</vendor>
+  <vendor_url>https://github.com/artemimennoi/awgbar</vendor_url>
+  <icon_name>awgbar</icon_name>
+  <action id="io.github.artemimennoi.awgbar.control">
+    <description>Control the AWG Bar VPN</description>
+    <description xml:lang="ru">Управление VPN AWG Bar</description>
+    <message>Authentication is required to control the AWG Bar VPN</message>
+    <message xml:lang="ru">Для управления VPN AWG Bar нужна аутентификация</message>
+    <defaults>
+      <allow_any>auth_admin_keep</allow_any>
+      <allow_inactive>auth_admin_keep</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+  </action>
+</policyconfig>
