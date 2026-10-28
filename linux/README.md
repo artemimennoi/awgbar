@@ -24,7 +24,7 @@ The two differ only in the Qt they use: Plasma's Breeze style exists only for th
 desktop itself is built on, so each package matches its Plasma.
 
 ```bash
-sudo apt install ./awgbar_0.1.0_qt5_amd64.deb
+sudo apt install ./awgbar_0.1.1_qt5_amd64.deb
 ```
 
 This is the only time a password is needed. The package starts the `awgbar-helper` service and
