@@ -42,12 +42,12 @@
 /* Updates */
 "Update to %@" = "Обновить до %@";
 "Download, install and relaunch; the VPN stays connected" = "Скачать, установить и перезапустить; VPN не отключится";
-"awgbar %@ is up to date" = "awgbar %@ — последняя версия";
+"AWG Bar %@ is up to date" = "AWG Bar %@ — последняя версия";
 "Cannot reach GitHub to check for updates" = "Не удалось связаться с GitHub для проверки обновлений";
 "Cannot download the update" = "Не удалось скачать обновление";
-"Move awgbar to Applications to update it" = "Перенеси awgbar в «Программы», чтобы обновлять его";
+"Move AWG Bar to Applications to update it" = "Перенеси AWG Bar в «Программы», чтобы обновлять его";
 "The update failed its checksum check" = "Обновление не прошло проверку контрольной суммы";
-"The update does not contain awgbar" = "В обновлении нет awgbar";
+"The update does not contain AWG Bar" = "В обновлении нет AWG Bar";
 
 /* Alerts and errors */
 "Helper error" = "Ошибка помощника";
@@ -70,6 +70,6 @@
 "No ready AmneziaWG config inside. If this is an admin key or a backup, connect once in AmneziaVPN and share the connection in AmneziaWG format" = "Внутри нет готового конфига AmneziaWG. Если это админский ключ или бэкап, подключись один раз в AmneziaVPN и поделись подключением в формате AmneziaWG";
 
 /* Helper installation */
-"awgbar is installing a helper that brings up the VPN tunnel." = "awgbar устанавливает помощник, который поднимает VPN-туннель.";
+"AWG Bar is installing a helper that brings up the VPN tunnel." = "AWG Bar устанавливает помощник, который поднимает VPN-туннель.";
 "install-helper.sh is missing from the app; build it with make" = "В приложении нет install-helper.sh — собери его через make";
 "Helper installation failed" = "Установка помощника не удалась";

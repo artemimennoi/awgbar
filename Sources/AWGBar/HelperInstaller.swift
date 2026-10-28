@@ -14,7 +14,7 @@ enum HelperInstaller {
         let command = "/bin/bash \(shellQuote(resources + "/install-helper.sh")) \(shellQuote(resources)) \(getuid())"
         let source = """
         do shell script "\(appleScriptEscape(command))" \
-        with prompt "\(appleScriptEscape(L("awgbar is installing a helper that brings up the VPN tunnel.")))" \
+        with prompt "\(appleScriptEscape(L("AWG Bar is installing a helper that brings up the VPN tunnel.")))" \
         with administrator privileges
         """
 

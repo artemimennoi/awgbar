@@ -5,9 +5,9 @@
 	<key>CFBundleIdentifier</key>
 	<string>local.awgbar</string>
 	<key>CFBundleName</key>
-	<string>AWGBar</string>
+	<string>AWG Bar</string>
 	<key>CFBundleDisplayName</key>
-	<string>AWGBar</string>
+	<string>AWG Bar</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIconName</key>

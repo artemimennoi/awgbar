@@ -27,7 +27,7 @@ enum StatusGlyph {
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = "awgbar"
+        image.accessibilityDescription = "AWG Bar"
         return image
     }
 

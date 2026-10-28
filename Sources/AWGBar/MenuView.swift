@@ -35,7 +35,7 @@ struct MenuView: View {
 
     private var header: some View {
         HStack {
-            Text(verbatim: "awgbar").font(.headline)
+            Text(verbatim: "AWG Bar").font(.headline)
             Spacer()
             HStack(spacing: 6) {
                 Circle().fill(statusColor).frame(width: 8, height: 8)

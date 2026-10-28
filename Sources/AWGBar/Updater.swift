@@ -31,7 +31,7 @@ final class Updater: ObservableObject {
             busy = true
             defer { busy = false }
             do {
-                if try await check() == nil { store?.notice = L("awgbar %@ is up to date", current) }
+                if try await check() == nil { store?.notice = L("AWG Bar %@ is up to date", current) }
             } catch {
                 store?.error = error.localizedDescription
             }
@@ -88,21 +88,20 @@ final class Updater: ObservableObject {
             busy = true
             defer { busy = false }
             do {
-                let app = Bundle.main.bundleURL
-                try await install(release, replacing: app)
-                relaunch(app)
+                relaunch(try await install(release, replacing: Bundle.main.bundleURL))
             } catch {
                 store?.error = error.localizedDescription
             }
         }
     }
 
-    /// Replaces `target` with the app from the release's DMG. Separate from relaunching so it can be tested.
-    func install(_ release: Release, replacing target: URL) async throws {
+    /// Replaces `target` with the app from the release's DMG and returns where the app now is.
+    /// Separate from relaunching so it can be tested.
+    func install(_ release: Release, replacing target: URL) async throws -> URL {
         let fm = FileManager.default
         let parent = target.deletingLastPathComponent()
         guard target.pathExtension == "app", !target.path.hasPrefix("/Volumes/"), fm.isWritableFile(atPath: parent.path) else {
-            throw AppError(L("Move awgbar to Applications to update it"))
+            throw AppError(L("Move AWG Bar to Applications to update it"))
         }
         let work = fm.temporaryDirectory.appendingPathComponent("awgbar-update-\(UUID().uuidString)")
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
@@ -122,9 +121,11 @@ final class Updater: ObservableObject {
         try await Self.run("/usr/bin/hdiutil", ["attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", mount.path, dmg.path])
         defer { _ = try? Self.runSync("/usr/bin/hdiutil", ["detach", "-force", mount.path]) }
 
-        let newApp = mount.appendingPathComponent("AWGBar.app")
-        guard Bundle(url: newApp)?.bundleIdentifier == Bundle.main.bundleIdentifier ?? "local.awgbar" else {
-            throw AppError(L("The update does not contain awgbar"))
+        // Found by identifier, not by file name: the bundle's file name can change between releases.
+        let identifier = Bundle.main.bundleIdentifier ?? "local.awgbar"
+        guard let newApp = try fm.contentsOfDirectory(at: mount, includingPropertiesForKeys: nil)
+            .first(where: { $0.pathExtension == "app" && Bundle(url: $0)?.bundleIdentifier == identifier }) else {
+            throw AppError(L("The update does not contain AWG Bar"))
         }
         try await Self.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", newApp.path])
 
@@ -137,6 +138,12 @@ final class Updater: ObservableObject {
             try? fm.removeItem(at: staged)
             throw error
         }
+        // A release that renamed the app: give the installed copy the new name too. If that
+        // fails, the updated app still runs under the old one.
+        let renamed = parent.appendingPathComponent(newApp.lastPathComponent)
+        guard renamed.lastPathComponent != target.lastPathComponent, !fm.fileExists(atPath: renamed.path),
+              (try? fm.moveItem(at: target, to: renamed)) != nil else { return target }
+        return renamed
     }
 
     /// Opens the new copy once this process is gone; the tunnel stays up across the restart.
