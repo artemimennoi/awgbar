@@ -7,6 +7,8 @@ struct MenuView: View {
     @EnvironmentObject private var store: TunnelStore
     @EnvironmentObject private var updater: Updater
     @FocusState private var excludedFieldFocused: Bool
+    /// One glass highlight that slides between tunnel rows instead of blinking from row to row.
+    @Namespace private var selection
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -22,7 +24,6 @@ struct MenuView: View {
                 splitTunnel
             }
             infoRow
-            Divider()
             footer
         }
         .padding(16)
@@ -53,25 +54,29 @@ struct MenuView: View {
         store.busy ? .orange : store.isConnected ? .green : .secondary.opacity(0.5)
     }
 
+    /// Clear glass when off, green-tinted glass when on; `interactive` makes it light up and
+    /// flex under the pointer like the system's own glass controls.
     private var powerButton: some View {
         Button(action: store.toggle) {
             ZStack {
-                Circle()
-                    .fill(store.isConnected ? Color.green : Color.secondary.opacity(0.15))
-                    .frame(width: 88, height: 88)
                 if store.busy {
                     ProgressView().controlSize(.large)
                 } else {
                     Image(systemName: "power")
                         .font(.system(size: 34, weight: .semibold))
                         .foregroundStyle(store.isConnected ? .white : .primary)
+                        .symbolEffect(.bounce, value: store.isConnected)
                 }
             }
+            .frame(width: 88, height: 88)
+            .glassEffect(.regular.tint(store.isConnected ? .green : nil).interactive(), in: .circle)
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .disabled(store.busy || store.selected == nil)
         .frame(maxWidth: .infinity)
+        .animation(.smooth, value: store.isConnected)
+        .animation(.smooth, value: store.busy)
         .help(store.isConnected ? L("Disconnect") : L("Connect"))
     }
 
@@ -85,8 +90,8 @@ struct MenuView: View {
                 ScrollView {
                     VStack(spacing: tunnelRowSpacing) {
                         ForEach(store.tunnels) { tunnel in
-                            TunnelRow(tunnel: tunnel, selected: tunnel.name == store.selected)
-                                .onTapGesture { store.select(tunnel.name) }
+                            TunnelRow(tunnel: tunnel, selected: tunnel.name == store.selected, selection: selection)
+                                .onTapGesture { withAnimation(.smooth) { store.select(tunnel.name) } }
                                 .contextMenu {
                                     Button(L("Rename…")) { store.rename(tunnel) }
                                     Button(L("Delete…"), role: .destructive) { store.delete(tunnel) }
@@ -95,6 +100,7 @@ struct MenuView: View {
                     }
                 }
                 .scrollBounceBehavior(.basedOnSize)
+                .scrollEdgeEffectStyle(.soft, for: .vertical)
             }
         }
         .frame(height: tunnelListHeight, alignment: .top)
@@ -111,7 +117,7 @@ struct MenuView: View {
             Text(L("Bypass VPN")).font(.subheadline)
             if store.editingExcluded {
                 TextField(text: $store.excludedDraft, prompt: Text(verbatim: "10.*, 192.168.0.0/16")) { EmptyView() }
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .font(.caption)
                     .focused($excludedFieldFocused)
                     .onAppear { excludedFieldFocused = true }
@@ -136,7 +142,9 @@ struct MenuView: View {
                 .help(L("Subnets that go around the VPN"))
             }
         }
-        .frame(height: 22)
+        .padding(.horizontal, 12)
+        .frame(height: 30)
+        .glassEffect(.regular.interactive(), in: .capsule)
         .disabled(store.busy || store.helper == .outdated)
     }
 
@@ -181,9 +189,12 @@ struct MenuView: View {
             Text(L("No tunnels")).font(.subheadline)
             Text(L("Copy a vpn://… key or choose a .conf file"))
                 .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            HStack {
-                Button(L("From Clipboard"), action: store.importFromClipboard)
-                Button(L("From File…"), action: store.importFromFile)
+            GlassEffectContainer {
+                HStack {
+                    Button(L("From Clipboard"), action: store.importFromClipboard)
+                    Button(L("From File…"), action: store.importFromFile)
+                }
+                .buttonStyle(.glass)
             }
         }
         .frame(maxWidth: .infinity)
@@ -197,55 +208,64 @@ struct MenuView: View {
             if case .unreachable(let reason) = store.helper {
                 Text(L("The helper is installed but not responding: %@", reason)).font(.caption).foregroundStyle(.orange)
             }
-            Button(L("Install Helper"), action: store.installHelper).buttonStyle(.borderedProminent)
+            Button(L("Install Helper"), action: store.installHelper).buttonStyle(.glassProminent)
         }
     }
 
+    /// Round glass buttons, like the toolbar controls of macOS 26 apps.
     private var footer: some View {
-        HStack {
-            Menu {
-                Button(L("From Clipboard"), action: store.importFromClipboard)
-                Button(L("From File…"), action: store.importFromFile)
-            } label: {
-                Image(systemName: "plus")
+        GlassEffectContainer {
+            HStack {
+                footerButtons
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
             .menuIndicator(.hidden)
-            .fixedSize()
-            .disabled(!store.helper.usable || store.busy)
-            .help(L("Add Tunnel"))
-
-            Spacer()
-
-            if updater.busy {
-                ProgressView().controlSize(.small)
-            } else if let release = updater.available {
-                Button(L("Update to %@", release.version), action: updater.installAvailable)
-                    .buttonStyle(.link)
-                    .font(.caption)
-                    .help(L("Download, install and relaunch; the VPN stays connected"))
-            }
-
-            Menu {
-                Toggle(L("Launch at Login"), isOn: Binding(get: { store.launchAtLogin }, set: { store.launchAtLogin = $0 }))
-                Picker(L("Language"), selection: Binding(get: { store.language }, set: { store.language = $0 })) {
-                    ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
-                }
-                Toggle(L("Debug Log"), isOn: Binding(get: { store.debugLog }, set: { store.setDebugLog($0) }))
-                    .disabled(store.helper != .ready)
-                Button(store.helper == .outdated ? L("Update Helper…") : L("Reinstall Helper…"), action: store.installHelper)
-                Button(L("Check for Updates…"), action: updater.checkNow)
-                    .disabled(updater.busy)
-                Divider()
-                // AppDelegate brings the tunnel down before the app exits.
-                Button(store.isConnected ? L("Disconnect VPN and Quit") : L("Quit")) { NSApp.terminate(nil) }
-            } label: {
-                Image(systemName: store.helper == .outdated ? "gearshape.badge.exclamationmark" : "gearshape")
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
         }
+    }
+
+    @ViewBuilder private var footerButtons: some View {
+        Menu {
+            Button(L("From Clipboard"), action: store.importFromClipboard)
+            Button(L("From File…"), action: store.importFromFile)
+        } label: {
+            Image(systemName: "plus").frame(width: 16, height: 16)
+        }
+        .fixedSize()
+        .disabled(!store.helper.usable || store.busy)
+        .help(L("Add Tunnel"))
+
+        Spacer()
+
+        if updater.busy {
+            ProgressView().controlSize(.small)
+        } else if let release = updater.available {
+            Button(L("Update to %@", release.version), action: updater.installAvailable)
+                .buttonStyle(.glassProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .help(L("Download, install and relaunch; the VPN stays connected"))
+        }
+
+        Menu {
+            Toggle(L("Launch at Login"), isOn: Binding(get: { store.launchAtLogin }, set: { store.launchAtLogin = $0 }))
+            Picker(L("Language"), selection: Binding(get: { store.language }, set: { store.language = $0 })) {
+                ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
+            }
+            Toggle(L("Debug Log"), isOn: Binding(get: { store.debugLog }, set: { store.setDebugLog($0) }))
+                .disabled(store.helper != .ready)
+            Button(store.helper == .outdated ? L("Update Helper…") : L("Reinstall Helper…"), action: store.installHelper)
+            Button(L("Check for Updates…"), action: updater.checkNow)
+                .disabled(updater.busy)
+            Divider()
+            // AppDelegate brings the tunnel down before the app exits.
+            Button(store.isConnected ? L("Disconnect VPN and Quit") : L("Quit")) { NSApp.terminate(nil) }
+        } label: {
+            Image(systemName: store.helper == .outdated ? "gearshape.badge.exclamationmark" : "gearshape")
+                .frame(width: 16, height: 16)
+        }
+        .fixedSize()
     }
 }
 
@@ -253,10 +273,13 @@ private let visibleTunnelRows = 5
 private let tunnelRowHeight: CGFloat = 30
 private let tunnelRowSpacing: CGFloat = 2
 private let tunnelListHeight = CGFloat(visibleTunnelRows) * tunnelRowHeight + CGFloat(visibleTunnelRows - 1) * tunnelRowSpacing
+/// Corners follow the window's own rounding, so inner shapes stay concentric with it.
+private let rowShape = ConcentricRectangle(corners: .concentric(minimum: 8), isUniform: true)
 
 private struct TunnelRow: View {
     let tunnel: TunnelInfo
     let selected: Bool
+    let selection: Namespace.ID
 
     var body: some View {
         HStack {
@@ -270,7 +293,13 @@ private struct TunnelRow: View {
         }
         .padding(.horizontal, 8)
         .frame(height: tunnelRowHeight)
-        .background(selected ? Color.secondary.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .background {
+            if selected {
+                Color.clear
+                    .glassEffect(.regular.interactive(), in: rowShape)
+                    .matchedGeometryEffect(id: "selection", in: selection)
+            }
+        }
         .contentShape(Rectangle())
     }
 }
@@ -289,6 +318,9 @@ private struct StatsView: View {
         }
         .font(.caption)
         .monospacedDigit()
+        .contentTransition(.numericText())
+        .animation(.smooth, value: stats.rxBytes)
+        .animation(.smooth, value: stats.txBytes)
         .lineLimit(1)
     }
 
