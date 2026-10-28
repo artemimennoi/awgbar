@@ -14,3 +14,12 @@ programs, each under its own license. Exact revisions are pinned in the `Makefil
 itself distributed under GPL-2.0, like the file it changes. If you distribute a built app, you
 must also offer the corresponding source of these components (the URLs and revisions above plus
 the patch) and keep their license texts available.
+
+## Android app (`android/`)
+
+| Component | Used as | License | Source |
+|---|---|---|---|
+| amneziawg-android `tunnel` module (at `ff15093`) | `android/tunnel`, vendored and trimmed | Apache-2.0 (`android/tunnel/COPYING`) | https://github.com/amnezia-vpn/amneziawg-android |
+| amneziawg-go v3.1.20260814 | `libwg-go.so` inside the APK | MIT | https://github.com/amnezia-vpn/amneziawg-go |
+| Go runtime 1.25.14 (with WireGuard's boottime patch) | compiled into `libwg-go.so` | BSD-3-Clause | https://go.dev |
+| AndroidX, Jetpack Compose, kotlinx.coroutines | app dependencies | Apache-2.0 | https://developer.android.com/jetpack |

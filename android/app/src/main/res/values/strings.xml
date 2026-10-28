@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">AWG Bar</string>
+    <string name="please_wait">Please wait…</string>
+    <string name="connected">Connected · %1$s</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="no_tunnels">No tunnels</string>
+    <string name="no_tunnels_hint">Copy a vpn://… key or choose a .conf file</string>
+    <string name="from_clipboard">From Clipboard</string>
+    <string name="from_file">From File</string>
+    <string name="clipboard_empty">The clipboard is empty</string>
+    <string name="rename">Rename</string>
+    <string name="delete">Delete</string>
+    <string name="delete_title">Delete %1$s?</string>
+    <string name="name_taken">Name is taken or invalid: Latin letters, digits and _=+.- only, up to 15</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="bypass">Bypass VPN</string>
+    <string name="bypass_hint">Subnets that go around the VPN, separated by commas</string>
+    <string name="bypass_invalid">Not a subnet: %1$s</string>
+    <string name="apply">Apply</string>
+    <plurals name="imported">
+        <item quantity="one">Imported %d tunnel</item>
+        <item quantity="other">Imported %d tunnels</item>
+    </plurals>
+    <string name="err_bad_json">The file is not valid JSON</string>
+    <string name="err_unknown_format">Expected a vpn://… key, AmneziaVPN JSON or an AmneziaWG config</string>
+    <string name="err_premium_key">This is an Amnezia Premium/Free key: its config is issued by Amnezia\'s server at connect time and cannot be imported</string>
+    <string name="err_no_config">No ready AmneziaWG config inside. If this is an admin key or a backup, connect once in AmneziaVPN and share the connection in AmneziaWG format</string>
+    <string name="err_not_base64">Broken key: not base64</string>
+    <string name="err_cannot_unpack">Broken key: cannot unpack it</string>
+    <string name="err_config">Bad config: %1$s</string>
+</resources>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="please_wait">Подождите…</string>
+    <string name="connected">Подключено · %1$s</string>
+    <string name="disconnected">Отключено</string>
+    <string name="connect">Подключить</string>
+    <string name="disconnect">Отключить</string>
+    <string name="no_tunnels">Нет туннелей</string>
+    <string name="no_tunnels_hint">Скопируйте ключ vpn://… или выберите файл .conf</string>
+    <string name="from_clipboard">Из буфера</string>
+    <string name="from_file">Из файла</string>
+    <string name="clipboard_empty">Буфер обмена пуст</string>
+    <string name="rename">Переименовать</string>
+    <string name="delete">Удалить</string>
+    <string name="delete_title">Удалить %1$s?</string>
+    <string name="name_taken">Имя занято или недопустимо: только латиница, цифры и _=+.-, до 15 символов</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Отмена</string>
+    <string name="bypass">Обход VPN</string>
+    <string name="bypass_hint">Подсети мимо VPN, через запятую</string>
+    <string name="bypass_invalid">Не подсеть: %1$s</string>
+    <string name="apply">Применить</string>
+    <plurals name="imported">
+        <item quantity="one">Импортирован %d туннель</item>
+        <item quantity="few">Импортировано %d туннеля</item>
+        <item quantity="many">Импортировано %d туннелей</item>
+        <item quantity="other">Импортировано %d туннеля</item>
+    </plurals>
+    <string name="err_bad_json">Файл не является корректным JSON</string>
+    <string name="err_unknown_format">Нужен ключ vpn://…, JSON из AmneziaVPN или конфиг AmneziaWG</string>
+    <string name="err_premium_key">Это ключ Amnezia Premium/Free: конфиг выдаёт сервер Amnezia при подключении, импортировать его нельзя</string>
+    <string name="err_no_config">Внутри нет готового конфига AmneziaWG. Если это ключ администратора или бэкап, подключитесь один раз в AmneziaVPN и поделитесь подключением в формате AmneziaWG</string>
+    <string name="err_not_base64">Ключ повреждён: это не base64</string>
+    <string name="err_cannot_unpack">Ключ повреждён: не удаётся распаковать</string>
+    <string name="err_config">Ошибка в конфиге: %1$s</string>
+</resources>
