@@ -10,6 +10,9 @@
     <string name="no_tunnels_hint">Copy a vpn://… key or choose a .conf file</string>
     <string name="from_clipboard">From Clipboard</string>
     <string name="from_file">From File</string>
+    <string name="scan_qr">Scan QR</string>
+    <string name="qr_hint">Point the camera at the QR code. AmneziaVPN may show several in a row: scan them all</string>
+    <string name="qr_series">Scanned %1$s, show the next code</string>
     <string name="clipboard_empty">The clipboard is empty</string>
     <string name="rename">Rename</string>
     <string name="delete">Delete</string>

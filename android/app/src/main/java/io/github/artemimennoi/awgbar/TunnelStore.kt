@@ -22,9 +22,13 @@ class TunnelStore(context: Context) {
         set(value) = prefs.edit().putString("bypass", value).apply()
 
     /** Imports every config in [text]; a tunnel with the same keys is replaced in place. Returns the added names. */
-    fun import(text: String, suggestedName: String): List<String> {
+    fun import(text: String, suggestedName: String) = save(KeyImport.parse(text, suggestedName))
+
+    fun importQr(data: ByteArray) = save(KeyImport.parseQr(data, "awg"))
+
+    private fun save(tunnels: List<ImportedTunnel>): List<String> {
         val added = mutableListOf<String>()
-        for (t in KeyImport.parse(text, suggestedName)) {
+        for (t in tunnels) {
             val cfg = TunnelConfig.parse(t.config)
             val existing = names().firstOrNull { runCatching { read(it).identity }.getOrNull() == cfg.identity }
             val name = existing ?: KeyImport.tunnelName(t.name, names().toSet())

@@ -5,7 +5,7 @@ A small AmneziaWG client that works like the macOS AWG Bar. One screen holds:
 - the tunnel list (tap to select; ••• renames or deletes) with import from the clipboard or a file;
 - the "Bypass VPN" subnets.
 
-There is also a quick settings tile, and the app works as the system always-on VPN. English and Russian.
+A QR code from AmneziaVPN can be scanned with the camera, including a series of several codes. There is also a quick settings tile, and the app works as the system always-on VPN. English and Russian.
 
 The app imports the same things as on macOS: `vpn://…` keys, AmneziaVPN JSON (key, connection
 export, backup) and plain `.conf` files. A `vpn://` link or a shared `.conf` opens straight in the app.

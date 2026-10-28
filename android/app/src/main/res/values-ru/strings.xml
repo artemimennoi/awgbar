@@ -9,6 +9,9 @@
     <string name="no_tunnels_hint">Скопируйте ключ vpn://… или выберите файл .conf</string>
     <string name="from_clipboard">Из буфера</string>
     <string name="from_file">Из файла</string>
+    <string name="scan_qr">QR-код</string>
+    <string name="qr_hint">Наведите камеру на QR-код. AmneziaVPN может показывать несколько кодов подряд: отсканируйте все</string>
+    <string name="qr_series">Считано %1$s, покажите следующий код</string>
     <string name="clipboard_empty">Буфер обмена пуст</string>
     <string name="rename">Переименовать</string>
     <string name="delete">Удалить</string>

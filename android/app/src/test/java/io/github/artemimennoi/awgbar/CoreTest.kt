@@ -70,3 +70,24 @@ class CoreTest {
         assertEquals(emptyList<Cidr>(), Cidr.subtract(listOf(Cidr.parse("10.1.0.0/16")!!), listOf(Cidr.parse("10.*")!!)))
     }
 }
+
+class QrSeriesTest {
+    private fun chunk(count: Int, index: Int, data: ByteArray): String {
+        val b = java.nio.ByteBuffer.allocate(8 + data.size).putShort(1984).put(count.toByte()).put(index.toByte()).putInt(data.size).put(data)
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(b.array())
+    }
+
+    @Test fun series() {
+        val conf = "[Interface]\nPrivateKey = x\n[Peer]\nPublicKey = y\n".toByteArray()
+        val s = QrSeries()
+        assertNull(s.add(chunk(2, 1, conf.copyOfRange(10, conf.size))))
+        assertEquals(1, s.received)
+        val all = s.add(chunk(2, 0, conf.copyOfRange(0, 10)))!!
+        assertEquals(String(conf), String(all))
+        assertEquals(1, KeyImport.parseQr(all, "q").size)
+    }
+
+    @Test fun plainCode() {
+        assertEquals("vpn://abc", String(QrSeries().add("vpn://abc")!!))
+    }
+}

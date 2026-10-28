@@ -77,8 +77,19 @@ object KeyImport {
         val raw = runCatching { Base64.getUrlDecoder().decode(b64) }.getOrNull()
             ?: runCatching { Base64.getDecoder().decode(b64.padEnd((b64.length + 3) / 4 * 4, '=')) }.getOrNull()
             ?: throw ImportError(R.string.err_not_base64)
+        return unpack(raw) ?: throw ImportError(R.string.err_cannot_unpack)
+    }
+
+    /** JSON, possibly qCompress-ed, as found inside vpn:// keys and AmneziaVPN QR codes. */
+    private fun unpack(raw: ByteArray): Any? {
         val json = if (raw.size > 6 && raw[4] == 0x78.toByte()) inflate(raw.copyOfRange(4, raw.size)) ?: raw else raw
-        return parseJson(String(json, Charsets.UTF_8)) ?: throw ImportError(R.string.err_cannot_unpack)
+        return parseJson(String(json, Charsets.UTF_8))
+    }
+
+    /** The payload of a scanned QR code or a whole AmneziaVPN QR series: text, JSON or qCompress-ed JSON. */
+    fun parseQr(data: ByteArray, suggestedName: String): List<ImportedTunnel> {
+        unpack(data)?.let { return configs(it, suggestedName) }
+        return parse(String(data, Charsets.UTF_8), suggestedName)
     }
 
     private fun inflate(data: ByteArray): ByteArray? = runCatching {

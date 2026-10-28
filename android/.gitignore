@@ -6,3 +6,4 @@ tunnel/tools/libwg-go/build/
 tunnel/tools/libwg-go/out/
 *.keystore
 keystore.properties
+*.apk

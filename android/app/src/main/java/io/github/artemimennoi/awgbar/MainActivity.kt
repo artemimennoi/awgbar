@@ -78,12 +78,13 @@ private fun MainScreen(incoming: MutableStateFlow<Pair<String, String>?>) {
     var renaming by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<String?>(null) }
     var bypass by remember { mutableStateOf(Vpn.store.bypass) }
+    var scanning by remember { mutableStateOf(false) }
 
     fun reload() { names = Vpn.store.names(); selected = Vpn.store.selected }
 
-    fun import(text: String, name: String) {
+    fun importWith(block: () -> List<String>) {
         message = try {
-            val added = Vpn.store.import(text, name)
+            val added = block()
             reload()
             context.resources.getQuantityString(R.plurals.imported, added.size, added.size)
         } catch (e: ImportError) {
@@ -92,6 +93,8 @@ private fun MainScreen(incoming: MutableStateFlow<Pair<String, String>?>) {
             context.getString(R.string.err_config, e.message)
         }
     }
+
+    fun import(text: String, name: String) = importWith { Vpn.store.import(text, name) }
 
     val pending by incoming.collectAsState()
     LaunchedEffect(pending) { pending?.let { (t, n) -> import(t, n); incoming.value = null } }
@@ -177,6 +180,7 @@ private fun MainScreen(incoming: MutableStateFlow<Pair<String, String>?>) {
                 if (text.isNullOrBlank()) message = context.getString(R.string.clipboard_empty) else import(text, "awg")
             }) { Text(stringResource(R.string.from_clipboard)) }
             OutlinedButton(onClick = { openFile.launch(arrayOf("*/*")) }) { Text(stringResource(R.string.from_file)) }
+            OutlinedButton(onClick = { scanning = true }) { Text(stringResource(R.string.scan_qr)) }
         }
         message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 
@@ -197,6 +201,13 @@ private fun MainScreen(incoming: MutableStateFlow<Pair<String, String>?>) {
             onClick = { Vpn.store.bypass = bypass; Vpn.reconnectIfActive() },
             enabled = invalid.isEmpty() && bypass != Vpn.store.bypass,
         ) { Text(stringResource(R.string.apply)) }
+    }
+
+    if (scanning) {
+        QrScanner(
+            onResult = { data -> scanning = false; importWith { Vpn.store.importQr(data) } },
+            onDismiss = { scanning = false },
+        )
     }
 
     renaming?.let { old ->
