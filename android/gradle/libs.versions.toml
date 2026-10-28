@@ -12,7 +12,7 @@ compose-bom = "androidx.compose:compose-bom:2026.03.00"
 compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
-compose-icons = { module = "androidx.compose.material:material-icons-extended" }
+compose-icons = { module = "androidx.compose.material:material-icons-core" }
 jsr305 = "com.google.code.findbugs:jsr305:3.0.2"
 junit = "junit:junit:4.13.2"
 kotlinx-coroutines-android = "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"

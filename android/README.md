@@ -36,10 +36,11 @@ cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ANDROID_HOME=/opt/homebrew/
 The APKs are in `app/build/outputs/apk/debug/`, one per ABI plus `universal`. Unit tests run with
 `./gradlew :app:testDebugUnitTest`.
 
-Release builds are signed with your own key. Create `android/keystore.properties` (it is git-ignored):
+Release builds are signed with your own key. Gradle reads `android/keystore.properties` or
+`~/.android/awgbar-release.properties`, neither of which is in git:
 
 ```
-storeFile=awgbar.keystore
+storeFile=/Users/you/.android/awgbar-release.jks
 storePassword=…
 keyAlias=awgbar
 keyPassword=…
@@ -47,10 +48,12 @@ keyPassword=…
 
 Then `./gradlew assembleRelease`, and attach `app-arm64-v8a-release.apk` (and `universal`) to a GitHub Release.
 Always sign with the same key: Android only installs an update over a build signed with the same key.
+Back up the keystore together with its properties file. A release build is about 4 MB per ABI
+(R8 strips unused code); a debug build is much larger because nothing is stripped.
 
 ## Install (sideload, no Google Play)
 
-- Download the APK from GitHub Releases on the phone, open it and allow "Install unknown apps" for
+- Download `awgbar-android-<version>-arm64-v8a.apk` from the GitHub Release tagged `android-v<version>` on the phone, open it and allow "Install unknown apps" for
   the browser or file manager. Or use a cable: `adb install -r app-arm64-v8a-release.apk`.
 - The debug build has its own id (`…awgbar.debug`) and installs next to the release build.
 

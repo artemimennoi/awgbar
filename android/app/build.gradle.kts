@@ -6,10 +6,11 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// Release signing comes from android/keystore.properties, which stays out of git.
-val signing = rootProject.file("keystore.properties").takeIf { it.exists() }?.let { f ->
-    Properties().apply { f.inputStream().use { load(it) } }
-}
+// Release signing comes from android/keystore.properties or ~/.android/awgbar-release.properties,
+// both outside git. Keep the key: Android only installs updates signed with the same one.
+val signing = listOf(rootProject.file("keystore.properties"), File(System.getProperty("user.home"), ".android/awgbar-release.properties"))
+    .firstOrNull { it.exists() }
+    ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
 
 android {
     namespace = "io.github.artemimennoi.awgbar"
@@ -26,7 +27,7 @@ android {
 
     signingConfigs {
         if (signing != null) create("release") {
-            storeFile = rootProject.file(signing.getProperty("storeFile"))
+            storeFile = File(signing.getProperty("storeFile")).let { if (it.isAbsolute) it else rootProject.file(it) }
             storePassword = signing.getProperty("storePassword")
             keyAlias = signing.getProperty("keyAlias")
             keyPassword = signing.getProperty("keyPassword")

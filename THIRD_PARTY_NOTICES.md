@@ -22,5 +22,5 @@ the patch) and keep their license texts available.
 | amneziawg-android `tunnel` module (at `ff15093`) | `android/tunnel`, vendored and trimmed | Apache-2.0 (`android/tunnel/COPYING`) | https://github.com/amnezia-vpn/amneziawg-android |
 | amneziawg-go v3.1.20260814 | `libwg-go.so` inside the APK | MIT | https://github.com/amnezia-vpn/amneziawg-go |
 | Go runtime 1.25.14 (with WireGuard's boottime patch) | compiled into `libwg-go.so` | BSD-3-Clause | https://go.dev |
-| AndroidX, Jetpack Compose, kotlinx.coroutines | app dependencies | Apache-2.0 | https://developer.android.com/jetpack |
+| AndroidX, Jetpack Compose, kotlinx.coroutines, 11 Material icons copied into `android/app/.../icons` | app dependencies | Apache-2.0 | https://developer.android.com/jetpack |
 | zxing-android-embedded 4.3.0 (with ZXing core) | QR scanner | Apache-2.0 | https://github.com/journeyapps/zxing-android-embedded |
