@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">AWG Bar</string>
+    <string name="please_wait">Please wait…</string>
+    <string name="connected">Connected · %1$s</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="no_tunnels">No tunnels</string>
+    <string name="no_tunnels_hint">Copy a vpn://… key or choose a .conf file</string>
+    <string name="from_clipboard">From Clipboard</string>
+    <string name="from_file">From File</string>
+    <string name="scan_qr">Scan QR code</string>
+    <string name="qr_hint">Point the camera at the QR code. AmneziaVPN may show several in a row: scan them all</string>
+    <string name="qr_series">Scanned %1$s, show the next code</string>
+    <string name="clipboard_empty">The clipboard is empty</string>
+    <string name="rename">Rename</string>
+    <string name="delete">Delete</string>
+    <string name="delete_title">Delete %1$s?</string>
+    <string name="name_taken">Name is taken or invalid: Latin letters, digits and _=+.- only, up to 15</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="bypass">Bypass VPN</string>
+    <string name="bypass_hint">Traffic to these subnets goes around the tunnel. Tap a subnet to remove it</string>
+    <string name="bypass_invalid">Not a subnet: %1$s</string>
+    <string name="apply">Apply</string>
+    <plurals name="imported">
+        <item quantity="one">Imported %d tunnel</item>
+        <item quantity="other">Imported %d tunnels</item>
+    </plurals>
+    <string name="err_bad_json">The file is not valid JSON</string>
+    <string name="err_unknown_format">Expected a vpn://… key, AmneziaVPN JSON or an AmneziaWG config</string>
+    <string name="err_premium_key">This is an Amnezia Premium/Free key: its config is issued by Amnezia\'s server at connect time and cannot be imported</string>
+    <string name="err_no_config">No ready AmneziaWG config inside. If this is an admin key or a backup, connect once in AmneziaVPN and share the connection in AmneziaWG format</string>
+    <string name="err_not_base64">Broken key: not base64</string>
+    <string name="err_cannot_unpack">Broken key: cannot unpack it</string>
+    <string name="err_config">Bad config: %1$s</string>
+    <string name="status_on">Connected</string>
+    <string name="status_off">Disconnected</string>
+    <string name="status_busy">Connecting…</string>
+    <string name="tunnels">Tunnels</string>
+    <string name="active">Active now</string>
+    <string name="more">More</string>
+    <string name="add_tunnel">Add tunnel</string>
+    <string name="from_clipboard_desc">A copied vpn://… key or config</string>
+    <string name="scan_qr_desc">From AmneziaVPN or another screen</string>
+    <string name="from_file_desc">A .conf or AmneziaVPN backup</string>
+    <string name="download">Download</string>
+    <string name="upload">Upload</string>
+    <string name="bypass_add">Add subnet</string>
+    <string name="settings">Settings</string>
+    <string name="notif_setting">Status in notifications</string>
+    <string name="notif_setting_desc">While connected: the tunnel, traffic and a Disconnect button</string>
+    <string name="notif_channel">VPN status</string>
+    <string name="wallpaper">Wallpaper colors</string>
+    <string name="wallpaper_desc">Use the system Material You palette instead of AWG Bar\'s</string>
+    <string name="name_rule">Latin letters, digits and _=+.- only, up to 15</string>
+    <string name="rename_active">Disconnect before renaming the active tunnel</string>
+    <string name="import_exists">Already added: %1$s</string>
+    <string name="import_updated">Updated: %1$s</string>
+</resources>

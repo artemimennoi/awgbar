@@ -6,6 +6,7 @@ and plain AmneziaWG `.conf` files, connects with one button, shows the server an
 send chosen subnets around the VPN.
 
 There is also a Linux version for Ubuntu 22.04+ and Debian 12+, see [linux/README.md](linux/README.md).
+The Android app (Android 10+, APK from GitHub Releases) is in [android/README.md](android/README.md).
 
 No paid Apple Developer account is needed: instead of a Network Extension it uses a small root
 helper (a LaunchDaemon) that runs `amneziawg-go` and `awg-quick`.
