@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=AWG Bar
+GenericName=AmneziaWG VPN
+GenericName[ru]=VPN AmneziaWG
+Comment=Connect to AmneziaWG servers from the tray
+Comment[ru]=Подключение к серверам AmneziaWG из трея
+Exec=awgbar
+Icon=awgbar
+Terminal=false
+Categories=Network;
+Keywords=VPN;AmneziaWG;WireGuard;Amnezia;
+StartupNotify=false

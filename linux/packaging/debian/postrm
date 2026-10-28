@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = remove ] || [ "$1" = purge ]; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+# Tunnel configs (with private keys) stay unless the package is purged.
+if [ "$1" = purge ]; then
+    rm -rf /var/lib/awgbar
+    rm -f /var/log/awgbar-helper.log
+fi
+
+exit 0

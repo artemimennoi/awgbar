@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+# Stopping the helper disconnects the VPN and undoes its routes and DNS. Upgrades keep it
+# running; postinst restarts it with the new binary.
+if [ "$1" = remove ]; then
+    systemctl stop awgbar-helper.service >/dev/null 2>&1 || true
+    systemctl disable awgbar-helper.service >/dev/null 2>&1 || true
+fi
+
+exit 0

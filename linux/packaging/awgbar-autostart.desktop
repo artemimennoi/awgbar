@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AWG Bar
+Comment=AmneziaWG VPN in the tray
+Comment[ru]=VPN AmneziaWG в трее
+Exec=awgbar --background
+Icon=awgbar
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-phase=2

@@ -15,6 +15,20 @@ itself distributed under GPL-2.0, like the file it changes. If you distribute a 
 must also offer the corresponding source of these components (the URLs and revisions above plus
 the patch) and keep their license texts available.
 
+## Linux packages
+
+The Linux helper (`linux/helper`) links these Go modules statically; the `.deb` ships their
+license texts in `/usr/share/doc/awgbar/licenses`. Versions are pinned in `linux/go.mod`.
+
+| Component | License | Source |
+|---|---|---|
+| amneziawg-go | MIT | https://github.com/amnezia-vpn/amneziawg-go |
+| netlink, netns | Apache-2.0 | https://github.com/vishvananda/netlink |
+| godbus/dbus | BSD-2-Clause | https://github.com/godbus/dbus |
+| golang.org/x/sys, x/net, x/crypto | BSD-3-Clause | https://go.googlesource.com |
+
+The Linux app links the distribution's Qt (LGPL-3.0) dynamically.
+
 ## Android app (`android/`)
 
 | Component | Used as | License | Source |

@@ -5,6 +5,8 @@ It lives only in the menu bar: no Dock icon, no main window. Imports AmneziaVPN 
 and plain AmneziaWG `.conf` files, connects with one button, shows the server and traffic, and can
 send chosen subnets around the VPN.
 
+There is also a Linux version for Ubuntu 22.04+ and Debian 12+, see [linux/README.md](linux/README.md).
+
 No paid Apple Developer account is needed: instead of a Network Extension it uses a small root
 helper (a LaunchDaemon) that runs `amneziawg-go` and `awg-quick`.
 
