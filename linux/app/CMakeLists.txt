@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(awgbar VERSION 0.1.0 LANGUAGES CXX)
+project(awgbar VERSION 0.1.1 LANGUAGES CXX)
 
 # Built against the Qt the distribution's Plasma uses, so the Breeze style applies:
 # Qt 5 for Plasma 5 (Ubuntu 22.04/24.04, Debian 12), Qt 6 for Plasma 6 (Debian 13, Ubuntu 25.04+).
