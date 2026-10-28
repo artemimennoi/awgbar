@@ -21,19 +21,12 @@ private struct StatusIcon: View {
     @ObservedObject var store: TunnelStore
 
     var body: some View {
-        Image(nsImage: Self.symbol(store.busy ? "shield.lefthalf.filled" : store.isConnected ? "checkmark.shield.fill" : "shield"))
+        Image(nsImage: Self.images[store.busy ? .busy : store.isConnected ? .on : .off]!)
     }
 
-    /// Menu bar extras draw SF Symbols noticeably smaller than the system's own icons, and the
-    /// label ignores font modifiers, so render the symbol at a fixed size up front.
-    static let pointSize: CGFloat = 17
-
-    private static func symbol(_ name: String) -> NSImage {
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: "awgbar")?
-            .withSymbolConfiguration(.init(pointSize: pointSize, weight: .regular)) ?? NSImage()
-        image.isTemplate = true
-        return image
-    }
+    private static let images: [StatusGlyph.State: NSImage] = [
+        .off: StatusGlyph.image(.off), .busy: StatusGlyph.image(.busy), .on: StatusGlyph.image(.on),
+    ]
 }
 
 @MainActor

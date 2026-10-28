@@ -42,6 +42,10 @@ This builds `amneziawg-go`, `awg`, `awg-quick` and a self-contained `bash` from 
 assembles `build/AWGBar.app` and copies it to `/Applications`. Open it, click the shield in the
 menu bar and press **Install Helper**: macOS asks for your password once.
 
+The app icon is an Icon Composer file, `Resources/AppIcon.icon`, whose layers come from
+`Resources/make-icon.py`. Its compiled form is committed, so the build doesn't need Xcode; after
+changing the icon, run `make icon` with Xcode installed to regenerate it.
+
 Remove the helper and the app (tunnel configs are kept unless you run the uninstall script with `--purge`):
 
 ```bash

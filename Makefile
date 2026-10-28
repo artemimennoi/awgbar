@@ -16,7 +16,7 @@ AWG_TOOLS_REV ?= ee0f0a9aa34ff0a0da4b3433b9512781cfe02843
 VERSION    := $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)
 DIST       := build/dist
 
-.PHONY: all app deps install uninstall dist clean distclean
+.PHONY: all app icon deps install uninstall dist clean distclean
 
 all: app
 
@@ -44,6 +44,19 @@ $(BASH_DIR)/bash:
 	tar -xzf $(DEPS)/bash-$(BASH_VER).tar.gz -C $(DEPS)
 	cd $(BASH_DIR) && ./configure --disable-nls --without-bash-malloc >/dev/null && $(MAKE) -j8 >/dev/null
 
+# The app icon is an Icon Composer file. Compiling it needs Xcode's actool, so the results
+# (Assets.car for macOS 26, AppIcon.icns as the fallback) are committed and `app` only copies them;
+# rerun this after editing AppIcon.icon or make-icon.py.
+XCODE ?= /Applications/Xcode.app/Contents/Developer
+
+icon:
+	python3 Resources/make-icon.py
+	rm -rf build/icon && mkdir -p build/icon
+	DEVELOPER_DIR=$(XCODE) xcrun actool Resources/AppIcon.icon --compile build/icon \
+		--app-icon AppIcon --platform macosx --minimum-deployment-target 26.0 \
+		--output-partial-info-plist build/icon/partial.plist >/dev/null
+	cp build/icon/Assets.car build/icon/AppIcon.icns Resources/
+
 deps: $(AWG_GO)/amneziawg-go $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash
 
 app: deps
@@ -54,7 +67,7 @@ app: deps
 	cp .build/release/AWGBar $(APP)/Contents/MacOS/
 	cp .build/release/awgbar-helper $(RES)/helper/local.awgbar.helper
 	cp Resources/install-helper.sh Resources/uninstall-helper.sh $(RES)/
-	cp -R Resources/ru.lproj Resources/AppIcon.icns $(RES)/
+	cp -R Resources/ru.lproj Resources/AppIcon.icns Resources/Assets.car $(RES)/
 	cp $(AWG_GO)/amneziawg-go $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash $(RES)/bin/
 	# Fixes leftover /var/run/wireguard paths, keeps awg-quick from blocking under launchd,
 	# and routes split-tunnel exclusions like endpoints. See the comments in the patch.

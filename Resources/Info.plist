@@ -10,6 +10,8 @@
 	<string>AWGBar</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>CFBundleExecutable</key>
 	<string>AWGBar</string>
 	<key>CFBundlePackageType</key>
