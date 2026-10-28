@@ -20,6 +20,9 @@ data class VpnState(
     val busy: Boolean = false,
     val rx: Long = 0,
     val tx: Long = 0,
+    /** Bytes per second over the last poll. */
+    val rxRate: Long = 0,
+    val txRate: Long = 0,
     val error: String? = null,
 )
 
@@ -39,7 +42,7 @@ object Vpn {
     private class AppTunnel(private val tunnelName: String) : Tunnel {
         override fun getName(): String = tunnelName
         override fun onStateChange(newState: Tunnel.State) {
-            if (newState == Tunnel.State.DOWN) _state.update { if (it.active == tunnelName) it.copy(active = null, rx = 0, tx = 0) else it }
+            if (newState == Tunnel.State.DOWN) _state.update { if (it.active == tunnelName) it.copy(active = null, rx = 0, tx = 0, rxRate = 0, txRate = 0) else it }
             Tile.refresh(app)
         }
     }
@@ -57,6 +60,7 @@ object Vpn {
 
     fun connect(name: String? = store.selected) {
         name ?: return
+        endpointCache = null
         _state.update { it.copy(busy = true, error = null) }
         scope.launch {
             try {
@@ -82,7 +86,7 @@ object Vpn {
         scope.launch {
             runCatching { backend.setState(tunnel, Tunnel.State.DOWN, null) }.onFailure { Log.e(TAG, "disconnect", it) }
             current = null
-            _state.update { it.copy(active = null, busy = false, rx = 0, tx = 0) }
+            _state.update { it.copy(active = null, busy = false, rx = 0, tx = 0, rxRate = 0, txRate = 0) }
             Tile.refresh(app)
         }
     }
@@ -95,13 +99,39 @@ object Vpn {
     fun clearError() = _state.update { it.copy(error = null) }
 
     private suspend fun pollStats() {
+        var notified = false
         while (scope.isActive) {
-            current?.takeIf { state.value.active != null }?.let { t ->
+            val active = state.value.active
+            current?.takeIf { active != null }?.let { t ->
                 runCatching { backend.getStatistics(t) }.getOrNull()?.let { s ->
-                    _state.update { it.copy(rx = s.totalRx(), tx = s.totalTx()) }
+                    _state.update {
+                        val first = it.rx == 0L && it.tx == 0L
+                        it.copy(
+                            rx = s.totalRx(), tx = s.totalTx(),
+                            rxRate = if (first) 0 else (s.totalRx() - it.rx).coerceAtLeast(0),
+                            txRate = if (first) 0 else (s.totalTx() - it.tx).coerceAtLeast(0),
+                        )
+                    }
                 }
+            }
+            if (active != null && store.showNotification) {
+                Notifier.update(app, state.value, endpointHost(active))
+                notified = true
+            } else if (notified) {
+                Notifier.cancel(app)
+                notified = false
             }
             delay(1000)
         }
+    }
+
+    private var endpointCache: Pair<String, String?>? = null
+
+    /** The server's host for [name], without the port: what the UI and the notification show. */
+    fun endpointHost(name: String): String? {
+        endpointCache?.let { (n, host) -> if (n == name) return host }
+        val host = runCatching { store.read(name).endpoint }.getOrNull()?.substringBeforeLast(':')?.trim('[', ']')
+        endpointCache = name to host
+        return host
     }
 }

@@ -21,6 +21,14 @@ class TunnelStore(context: Context) {
         get() = prefs.getString("bypass", "") ?: ""
         set(value) = prefs.edit().putString("bypass", value).apply()
 
+    var showNotification: Boolean
+        get() = prefs.getBoolean("notification", false)
+        set(value) = prefs.edit().putBoolean("notification", value).apply()
+
+    var wallpaperColors: Boolean
+        get() = prefs.getBoolean("wallpaperColors", false)
+        set(value) = prefs.edit().putBoolean("wallpaperColors", value).apply()
+
     /** Imports every config in [text]; a tunnel with the same keys is replaced in place. Returns the added names. */
     fun import(text: String, suggestedName: String) = save(KeyImport.parse(text, suggestedName))
 
