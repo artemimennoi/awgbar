@@ -356,7 +356,7 @@ void Window::rebuild()
     m_emptyHint->setText(L("Copy a vpn://… key or choose a .conf file"));
     m_fromClipboard->setText(L("From Clipboard"));
     m_fromFile->setText(L("From File…"));
-    m_bypassLabel->setText(L("Bypass VPN"));
+    m_bypassLabel->setText(L("Bypass"));
     m_bypass->setToolTip(L("Subnets separated by commas; they go around the VPN"));
     m_apply->setText(L("Apply"));
     m_fromClipboard->setEnabled(!busy);

@@ -38,7 +38,7 @@ public interface Tunnel {
 
     /**
      * Whether the tunnel stands for a one-peer config that sends everything into it, even after
-     * its default route was cut up to send some subnets around it (AWG Bar's "Bypass VPN"):
+     * its default route was cut up to send some subnets around it (AWG Bar's "Bypass"):
      * address families it then doesn't route must stay blocked instead of bypassing the VPN.
      *
      * @return true to keep the backend's kill-switch semantics without a default route.
