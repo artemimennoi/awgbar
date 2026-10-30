@@ -217,7 +217,6 @@ let localNetworks = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0
 
 /// The passes are stateless: pf's default "flags S/SA keep state" would match only new TCP
 /// connections and cut every one already open, localhost included, the moment the VPN connects.
-/// What gets blocked is logged to pflog0 when that interface exists (see Resources/diagnose.sh).
 func killSwitchRules(utun: String, port: Int?, endpoints: [String], dns: [String], excluded: [CIDR]) -> String {
     func family(_ address: String) -> String { address.contains(":") ? "inet6" : "inet" }
     var lines = [
@@ -241,7 +240,7 @@ func killSwitchRules(utun: String, port: Int?, endpoints: [String], dns: [String
         if !nets.isEmpty { lines.append("pass out quick \(name) from any to { \(nets.joined(separator: ", ")) } no state") }
     }
     lines.append("pass out quick inet proto udp from any port 68 to any port 67 no state")
-    lines.append("block return out log quick all")
+    lines.append("block return out quick all")
     return lines.joined(separator: "\n") + "\n"
 }
 
@@ -275,7 +274,7 @@ func armKillSwitch(_ name: String, _ config: TunnelConfig) {
             .map { String(enable[$0].dropFirst("Token : ".count)) } ?? ""
         fm.createFile(atPath: killSwitchMarker(name), contents: Data(token.utf8), attributes: [.posixPermissions: 0o600])
     }
-    log("kill switch on for \(name) via \(utun), server \(endpoints), port \(port.map(String.init) ?? "?")\n\(rules)")
+    log("kill switch on for \(name) via \(utun), server \(endpoints), port \(port.map(String.init) ?? "?")")
 }
 
 func disarmKillSwitch(_ name: String) {

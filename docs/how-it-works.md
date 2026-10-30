@@ -58,7 +58,7 @@ LaunchDaemon) runs `amneziawg-go` and `awg-quick`, all built from pinned sources
   so a server answering from another address doesn't lock the tunnel out. DNS queries to the
   tunnel's servers may also leave through Wi-Fi or Ethernet: their addresses are set on the
   network services and macOS sends some queries bound to those, which blocked would kill DNS until
-  a reconnect (AmneziaVPN allows the same). What the rules block is logged to `pflog0`. If `amneziawg-go` dies, the rules stay and the menu
+  a reconnect (AmneziaVPN allows the same). If `amneziawg-go` dies, the rules stay and the menu
   says "Connection lost · traffic blocked" until you disconnect.
 - Updates are checked against an Ed25519 signature of the release's `SHA256SUMS`, whose public
   key is in the app; a release changed without the private key is refused.

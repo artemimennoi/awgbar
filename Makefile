@@ -76,7 +76,7 @@ app: deps
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" -c "Set :CFBundleVersion $(BUILD_NUMBER)" "$(APP)/Contents/Info.plist"
 	cp .build/release/AWGBar "$(APP)/Contents/MacOS/"
 	cp .build/release/awgbar-helper "$(RES)/helper/local.awgbar.helper"
-	cp Resources/install-helper.sh Resources/uninstall-helper.sh Resources/diagnose.sh "$(RES)/"
+	cp Resources/install-helper.sh Resources/uninstall-helper.sh "$(RES)/"
 	cp -R Resources/ru.lproj Resources/AppIcon.icns Resources/Assets.car "$(RES)/"
 	cp $(AWG_GO)/amneziawg-go $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash "$(RES)/bin/"
 	# Fixes leftover /var/run/wireguard paths, keeps awg-quick from blocking under launchd,
