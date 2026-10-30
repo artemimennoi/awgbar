@@ -3,6 +3,7 @@
 /* Window */
 "Please wait…" = "Подождите…";
 "Connected · %@" = "Подключено · %@";
+"Connection lost · traffic blocked" = "Связь потеряна · трафик заблокирован";
 "Disconnected" = "Отключено";
 "Connect" = "Подключить";
 "Disconnect" = "Отключить";
@@ -48,6 +49,7 @@
 "Cannot download the update" = "Не удалось скачать обновление";
 "Move AWG Bar to Applications to update it" = "Перенеси AWG Bar в «Программы», чтобы обновлять его";
 "The update failed its checksum check" = "Обновление не прошло проверку контрольной суммы";
+"The update failed its signature check" = "Обновление не прошло проверку подписи";
 "The update does not contain AWG Bar" = "В обновлении нет AWG Bar";
 
 /* Alerts and errors */

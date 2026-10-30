@@ -17,7 +17,7 @@ public enum HelperPaths {
     public static var debugLogFlag: String { support + "/debug-log" }
     public static let helperBinary = "/Library/PrivilegedHelperTools/\(label)"
     /// Bump when the helper or the bundled tools change, so the app offers to reinstall.
-    public static let version = 7
+    public static let version = 8
 }
 
 public struct Request: Codable, Sendable {
@@ -51,14 +51,18 @@ public struct TunnelInfo: Codable, Hashable, Identifiable, Sendable {
     public var endpoint: String?
     /// Human name as imported or renamed ("Резерв | #202 · NUE"); `name` is the awg-quick interface id.
     public var title: String?
+    /// Up as far as the user is concerned, but the tunnel itself is gone: the kill switch blocks
+    /// traffic until they disconnect.
+    public var blocked: Bool?
     public var id: String { name }
     public var displayName: String { title ?? name }
 
-    public init(name: String, active: Bool, endpoint: String? = nil, title: String? = nil) {
+    public init(name: String, active: Bool, endpoint: String? = nil, title: String? = nil, blocked: Bool? = nil) {
         self.name = name
         self.active = active
         self.endpoint = endpoint
         self.title = title
+        self.blocked = blocked
     }
 }
 

@@ -18,6 +18,8 @@ launchctl bootout "system/$LABEL" 2>/dev/null || true
 
 install -d -o root -g wheel -m 0755 /Library/PrivilegedHelperTools "$SUPPORT" "$SUPPORT/bin"
 install -d -o root -g wheel -m 0700 "$SUPPORT/tunnels"
+# The configs hold private keys in the clear (root only): keep them out of Time Machine.
+tmutil addexclusion "$SUPPORT" 2>/dev/null || true
 install -o root -g wheel -m 0755 "$RES/helper/$LABEL" "$HELPER"
 for f in awg-quick wg amneziawg-go bash; do
 	install -o root -g wheel -m 0755 "$RES/bin/$f" "$SUPPORT/bin/$f"

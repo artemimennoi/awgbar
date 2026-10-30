@@ -46,12 +46,13 @@ struct MenuView: View {
 
     private var statusText: String {
         if store.busy { return L("Please wait…") }
+        if store.active?.blocked == true { return L("Connection lost · traffic blocked") }
         if let active = store.active { return L("Connected · %@", active.displayName) }
         return L("Disconnected")
     }
 
     private var statusColor: Color {
-        store.busy ? .orange : store.isConnected ? .green : .secondary.opacity(0.5)
+        store.busy || store.active?.blocked == true ? .orange : store.isConnected ? .green : .secondary.opacity(0.5)
     }
 
     private var glyphState: StatusGlyph.State {

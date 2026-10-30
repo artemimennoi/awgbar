@@ -141,19 +141,63 @@ struct TunnelConfig {
             .compactMap { CIDR(String($0)) }
     }
 
-    /// The config routes all IPv6 into the tunnel but gives it no IPv6 address, so awg-quick
-    /// cannot add the IPv6 routes and that traffic would silently bypass the VPN.
-    var leaksIPv6: Bool {
-        let fullV6 = allowedIPs.contains { $0.isV6 && $0.prefix == 0 }
-        let hasV6Address = interface.filter { $0.key == "Address" }
+    private var addresses: [CIDR] {
+        interface.filter { $0.key == "Address" }
             .flatMap { $0.value.split(separator: ",") }
-            .contains { CIDR(String($0))?.isV6 == true }
-        return fullV6 && !hasV6Address
+            .compactMap { CIDR(String($0)) }
     }
 
+    private func fullTunnel(v6: Bool) -> Bool { allowedIPs.contains { $0.isV6 == v6 && $0.prefix == 0 } }
+
+    /// Sends everything of a family into the tunnel: only such a config gets the kill switch.
+    var fullTunnel: Bool { fullTunnel(v6: false) || fullTunnel(v6: true) }
+
+    /// The config routes all IPv6 into the tunnel but gives it no IPv6 address, so awg-quick
+    /// cannot add the IPv6 routes and that traffic would silently bypass the VPN.
+    var leaksIPv6: Bool { fullTunnel(v6: true) && !addresses.contains(where: \.isV6) }
+
+    /// Used when a full-tunnel config names no DNS server, as AmneziaVPN does: otherwise macOS
+    /// would keep asking the router, outside the tunnel.
+    static let fallbackDNS = ["1.1.1.1", "1.0.0.1"]
+
+    private var configDNS: [String] {
+        interface.filter { $0.key == "DNS" }
+            .flatMap { $0.value.split(separator: ",") }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { CIDR.parseAddress($0) != nil }
+    }
+
+    private var usesFallbackDNS: Bool {
+        configDNS.isEmpty && fullTunnel(v6: false) && addresses.contains { !$0.isV6 }
+    }
+
+    /// The name servers while connected: the config's addresses or the fallback.
+    var tunnelDNS: [String] { usesFallbackDNS ? Self.fallbackDNS : configDNS }
+
     func render(includeTitle: Bool) -> String {
+        Self.render(title: includeTitle ? title : nil, interface: interface, peers: peers)
+    }
+
+    /// What awg-quick gets: the stored config plus the fallback DNS, and host routes that keep
+    /// the name servers in the tunnel when a "Bypass VPN" network covers them (172.29.172.254,
+    /// AmneziaDNS, inside an excluded 172.16.0.0/12). Their /32 beats the excluded route.
+    func runtimeRender(excluded: [CIDR]) -> String {
+        var interface = interface
+        if usesFallbackDNS { interface.append(("DNS", Self.fallbackDNS.joined(separator: ", "))) }
+        var peers = peers
+        for server in tunnelDNS {
+            guard let host = CIDR(server), excluded.contains(where: { $0.contains(host) }),
+                  let i = peers.firstIndex(where: { peer in
+                      peer.contains { $0.key == "AllowedIPs" && $0.value.split(separator: ",").contains { CIDR(String($0)).map { $0.prefix == 0 && $0.isV6 == host.isV6 } ?? false } }
+                  }) else { continue }
+            peers[i].append(("AllowedIPs", host.description))
+        }
+        return Self.render(title: nil, interface: interface, peers: peers)
+    }
+
+    private static func render(title: String?, interface: [Entry], peers: [[Entry]]) -> String {
         var lines: [String] = []
-        if includeTitle, let title { lines.append(Self.titlePrefix + title) }
+        if let title { lines.append(Self.titlePrefix + title) }
         lines.append("[Interface]")
         lines += interface.map { "\($0.key) = \($0.value)" }
         for peer in peers {

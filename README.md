@@ -7,6 +7,8 @@ send chosen subnets around the VPN.
 
 There is also a Linux version for Ubuntu 22.04+ and Debian 12+, see [linux/README.md](linux/README.md).
 The Android app (Android 10+, APK from GitHub Releases) is in [android/README.md](android/README.md).
+All three share one version number and are released together: each GitHub release `vX.Y.Z` holds
+the macOS DMG, the Linux packages and the Android APKs.
 
 No paid Apple Developer account is needed: instead of a Network Extension it uses a small root
 helper (a LaunchDaemon) that runs `amneziawg-go` and `awg-quick`.
@@ -28,10 +30,12 @@ xattr -dr com.apple.quarantine "/Applications/AWG Bar.app"
 
 Settings menu → **Check for Updates…** looks at this repository's releases (betas included); the
 app never checks on its own. If there is a newer version, **Update to x.y.z** appears in the
-window: it downloads the DMG, verifies it against the release's `SHA256SUMS` and its code
-signature, replaces the app in place and relaunches it, keeping the VPN connected. The app must be
-in a folder you can write to, such as `/Applications`. The checksum guards against a broken
-download; authenticity relies on HTTPS to GitHub.
+window: it downloads the DMG, checks the release's `SHA256SUMS` against its Ed25519 signature
+(`SHA256SUMS.sig`, whose public key is built into the app), checks the DMG against `SHA256SUMS`,
+replaces the app in place and relaunches it, keeping the VPN connected. The app must be in a
+folder you can write to, such as `/Applications`. Without a valid signature nothing is installed,
+so a release swapped on GitHub without the signing key is refused. If the update bumps the helper,
+the app asks to reinstall it (your password once).
 
 ## Build from source
 
@@ -67,24 +71,37 @@ local.awgbar.helper (LaunchDaemon, root)
 amneziawg-go (utun) + routes + DNS
 ```
 
-- Tunnel configs are stored in `/Library/Application Support/AWGBar/tunnels` (root, 0600).
+- Tunnel configs are stored in `/Library/Application Support/AWGBar/tunnels` (root, 0600) and are
+  excluded from Time Machine: they hold private keys in the clear.
 - Only one tunnel is up at a time. Quitting the app disconnects the VPN.
 - **Split tunnelling** («Bypass VPN»): listed subnets (`10.*`, `192.168.0.0/16`, `fd00::/8`, …) are
   routed through your normal gateway. They reuse awg-quick's endpoint routes, so they follow
   network changes and are removed on disconnect. Requires a full-tunnel config (`0.0.0.0/0`).
+- **Kill switch**: while a full-tunnel config (`0.0.0.0/0` or `::/0`) is connected, a pf anchor
+  (`com.apple/AWGBar`, loaded without touching `/etc/pf.conf`) lets out only the tunnel, the
+  server, local networks, the Bypass VPN subnets and DHCP. That stops a hostile DHCP server pushing
+  routes around the VPN (option 121, "TunnelVision"), IPv6 leaking past a v4-only config, and the
+  traffic leaking if `amneziawg-go` dies: then the menu says "Connection lost · traffic blocked"
+  until you disconnect. The rules go away on disconnect and on quit.
+- **DNS**: a full-tunnel config without `DNS` uses 1.1.1.1 and 1.0.0.1 through the tunnel, as
+  AmneziaVPN does, instead of the router's. The tunnel's name servers are kept in the tunnel even
+  when a Bypass VPN subnet covers them (AmneziaDNS 172.29.172.254 inside `172.16.0.0/12`).
 - **IPv6 leak protection**: if a config sends `::/0` into the tunnel but gives it no IPv6 address,
   IPv6 is blackholed while connected instead of silently bypassing the VPN.
 - English and Russian UI, switchable in the settings menu (English by default).
 
 ## Security model
 
-- The helper accepts requests only from root and from the user who installed it.
+- The helper accepts requests only from root and from the user who installed it. It never
+  replaces a tunnel on import (a new name is required), so nothing can swap the server behind a
+  name you trust.
 - awg-quick runs `PreUp`/`PostUp`/`PreDown`/`PostDown` through `eval` as root. AWG Bar never passes
   a config to it as written: every config is parsed against an allowlist of keys known to awg and
   awg-quick, values are validated, and a canonical copy is rendered before each connect. Hooks,
   `Table` and `SaveConfig` are dropped.
-- Everything that runs as root is copied into root-owned locations at install time; nothing is
-  executed from the user-writable app bundle.
+- Everything that runs as root afterwards is copied into root-owned locations at install time.
+  The install script itself runs once from the app bundle, with your password, like any admin
+  prompt: only press Install Helper for an app you got from the releases.
 - **No logs by default.** The helper writes nothing unless **Debug Log** is enabled in the settings
   menu; it then logs to `/var/log/awgbar-helper.log` (root only, 0600), which is deleted when the
   option is turned off. Private keys are never logged.
@@ -100,7 +117,18 @@ sudo /Library/PrivilegedHelperTools/local.awgbar.helper --print-config <tunnel>
 - AWG Bar and the AmneziaVPN app share `/var/run/amneziawg`; don't run both tunnels at once.
 - If the Mac loses power while connected, DNS servers set by awg-quick stay in the network
   settings until the next connect/disconnect (same as upstream wg-quick).
+- While connected, other VPNs (Tailscale and the like) can't reach their servers: the kill switch
+  lets only AWG Bar's tunnel out. Add their networks to Bypass VPN if you need them.
 - Amnezia Premium/Free keys can't be imported: their config is issued by Amnezia's API at connect time.
+
+## Releases
+
+`VERSION` holds the one version all clients use. `make release` builds the DMG, the four Linux
+packages and the Android APKs into `build.noindex/release` and writes `SHA256SUMS` with its
+signature; publish them as release `v$(cat VERSION)`. Signing needs the Ed25519 key in
+`~/.config/awgbar/release-ed25519.key` (made by `swift scripts/sign.swift keygen`) and the Android
+key described in [android/README.md](android/README.md). Keep backups of both: without the first no
+macOS update can be signed, without the second Android won't update the app.
 
 ## Translations
 

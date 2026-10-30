@@ -1,4 +1,5 @@
 import AWGShared
+import Compression
 import Foundation
 
 struct ImportedTunnel {
@@ -88,8 +89,8 @@ enum KeyImport {
 
         let json: Data
         if raw.count > 6, raw[raw.startIndex + 4] == 0x78,
-           // NSData's .zlib is raw deflate, so skip the length and the 2-byte zlib header.
-           let inflated = try? (Data(raw.dropFirst(6)) as NSData).decompressed(using: .zlib) as Data {
+           // Compression's .zlib is raw deflate, so skip the length and the 2-byte zlib header.
+           let inflated = inflate(Data(raw.dropFirst(6))) {
             json = inflated
         } else {
             json = raw
@@ -98,6 +99,22 @@ enum KeyImport {
             throw AppError(L("Broken key: cannot unpack it"))
         }
         return doc
+    }
+
+    /// Raw deflate, stopping at `limit`: a real key unpacks to a few KB, a crafted one to gigabytes.
+    static func inflate(_ data: Data, limit: Int = 1 << 20) -> Data? {
+        var out = Data()
+        do {
+            let filter = try OutputFilter(.decompress, using: .zlib) { chunk in
+                if let chunk { out.append(chunk) }
+                if out.count > limit { throw AppError("too large") }
+            }
+            try filter.write(data)
+            try filter.finalize()
+        } catch {
+            return nil
+        }
+        return out.isEmpty ? nil : out
     }
 
     /// awg-quick uses the file name as the interface name: [a-zA-Z0-9_=+.-]{1,15}.
