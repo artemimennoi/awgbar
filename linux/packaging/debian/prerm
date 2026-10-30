@@ -6,6 +6,8 @@ set -e
 if [ "$1" = remove ]; then
     systemctl stop awgbar-helper.service >/dev/null 2>&1 || true
     systemctl disable awgbar-helper.service >/dev/null 2>&1 || true
+    # Rules, firewall and DNS a crashed helper may have left behind.
+    /usr/lib/awgbar/awgbar-helper --cleanup >/dev/null 2>&1 || true
 fi
 
 exit 0

@@ -4,8 +4,10 @@ set -e
 if [ "$1" = configure ]; then
     systemctl daemon-reload >/dev/null 2>&1 || true
     systemctl enable awgbar-helper.service >/dev/null 2>&1 || true
-    # On an upgrade the restart reconnects the tunnel that was up.
+    # On an upgrade the restart reconnects the tunnel that was up; told beforehand, the old
+    # helper keeps its rules and DNS in place, so nothing leaks in between.
     if [ -n "$2" ]; then
+        /usr/lib/awgbar/awgbar-helper --prepare-restart >/dev/null 2>&1 || true
         systemctl restart awgbar-helper.service >/dev/null 2>&1 || true
     else
         systemctl start awgbar-helper.service >/dev/null 2>&1 || true

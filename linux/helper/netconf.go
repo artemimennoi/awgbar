@@ -15,22 +15,27 @@ import (
 // the main table says. NetworkManager can replace the gateway, Wi-Fi can drop during sleep, and
 // nothing of ours goes stale, because nothing of ours depends on the gateway.
 //
+//	prio 16698  to <tunnel DNS> fwmark 0x4157 lookup main  (our own look-ups of the server name)
+//	prio 16699  to <tunnel DNS>            lookup 16727    name servers stay in the tunnel
 //	prio 16700  to <excluded>              lookup main     split-tunnel exclusions
 //	prio 16701  lookup main suppress_prefixlength 0        LAN and other specific routes still work
 //	prio 16702  not fwmark 0x4157          lookup 16727    everything else into the tunnel
 //
 // Table 16727 holds the AllowedIPs routes via awgbar0 plus a blackhole default with a high metric:
 // if the interface disappears (helper crash) traffic stops instead of leaking around the VPN.
+// The firewall (see firewall.go) is installed and removed together with the rules.
 const (
 	fwmark          = 0x4157 // "AW"
 	routeTable      = 16727
+	prioDNSMarked   = 16698
+	prioDNS         = 16699
 	prioExcluded    = 16700
 	prioSuppress    = 16701
 	prioTunnel      = 16702
 	blackholeMetric = 4096
 )
 
-var ourPriorities = map[int]bool{prioExcluded: true, prioSuppress: true, prioTunnel: true}
+var ourPriorities = map[int]bool{prioDNSMarked: true, prioDNS: true, prioExcluded: true, prioSuppress: true, prioTunnel: true}
 
 func family(v6 bool) int {
 	if v6 {
@@ -112,10 +117,33 @@ func addTunnelRoutes(c *TunnelConfig, link netlink.Link) error {
 	return nil
 }
 
-// addRules installs the policy rules and blackholes. Exclusions apply to both families.
+// addRules installs the policy rules, blackholes and the firewall. Exclusions apply to both families.
 func addRules(c *TunnelConfig, excluded []netip.Prefix) error {
+	servers, _ := c.tunnelDNS()
 	for _, v6 := range families(c) {
 		if c.fullTunnel(v6) {
+			// A bypassed or local network must not take the tunnel's name servers with it. Our own
+			// marked look-ups may be sent to the same server, and those go around the tunnel.
+			// (A rule's "not" inverts all of its selectors, so this takes two rules.)
+			for _, s := range servers {
+				if s.Is6() != v6 {
+					continue
+				}
+				dst := ipNet(netip.PrefixFrom(s, s.BitLen()))
+				marked := netlink.NewRule()
+				marked.Family, marked.Priority, marked.Table, marked.Dst = family(v6), prioDNSMarked, unix.RT_TABLE_MAIN, dst
+				marked.Mark = fwmark
+				mask := uint32(0xffffffff)
+				marked.Mask = &mask
+				if err := ruleAdd(marked); err != nil {
+					return err
+				}
+				rule := netlink.NewRule()
+				rule.Family, rule.Priority, rule.Table, rule.Dst = family(v6), prioDNS, routeTable, dst
+				if err := ruleAdd(rule); err != nil {
+					return err
+				}
+			}
 			blackhole := &netlink.Route{Dst: defaultNet(v6), Table: routeTable, Type: unix.RTN_BLACKHOLE,
 				Priority: blackholeMetric, Family: family(v6)}
 			if err := netlink.RouteReplace(blackhole); err != nil {
@@ -135,7 +163,15 @@ func addRules(c *TunnelConfig, excluded []netip.Prefix) error {
 			return err
 		}
 	}
-	return addExcludedRules(excluded)
+	if err := addExcludedRules(excluded); err != nil {
+		return err
+	}
+	// A kernel without nf_tables still gets the VPN, with the routing blackholes alone; the
+	// watchdog keeps trying to add the firewall.
+	if err := installFirewall(c, excluded); err != nil {
+		log("firewall: %v", err)
+	}
+	return nil
 }
 
 func addExcludedRules(excluded []netip.Prefix) error {
@@ -150,7 +186,7 @@ func addExcludedRules(excluded []netip.Prefix) error {
 }
 
 // setExcludedRules swaps the exclusions of a running tunnel without touching the other rules.
-func setExcludedRules(excluded []netip.Prefix) error {
+func setExcludedRules(c *TunnelConfig, excluded []netip.Prefix) error {
 	for _, fam := range []int{netlink.FAMILY_V4, netlink.FAMILY_V6} {
 		rules, _ := netlink.RuleList(fam)
 		for i := range rules {
@@ -159,7 +195,13 @@ func setExcludedRules(excluded []netip.Prefix) error {
 			}
 		}
 	}
-	return addExcludedRules(excluded)
+	if err := addExcludedRules(excluded); err != nil {
+		return err
+	}
+	if err := installFirewall(c, excluded); err != nil {
+		log("firewall: %v", err)
+	}
+	return nil
 }
 
 func ruleAdd(rule *netlink.Rule) error {
@@ -169,9 +211,10 @@ func ruleAdd(rule *netlink.Rule) error {
 	return nil
 }
 
-// removeRules deletes every rule at our priorities and flushes our table; safe to call when
-// nothing is installed, and the way stale state from a crashed helper is cleaned up.
+// removeRules deletes every rule at our priorities, flushes our table and drops the firewall;
+// safe to call when nothing is installed, and the way stale state from a crashed helper is cleaned up.
 func removeRules() {
+	removeFirewall()
 	for _, fam := range []int{netlink.FAMILY_V4, netlink.FAMILY_V6} {
 		rules, _ := netlink.RuleList(fam)
 		for i := range rules {
@@ -186,8 +229,12 @@ func removeRules() {
 	}
 }
 
-// rulesPresent checks that someone (a firewall script, `ip rule flush`) hasn't removed ours.
+// rulesPresent checks that someone (a firewall script, `ip rule flush`, `nft flush ruleset`)
+// hasn't removed ours.
 func rulesPresent(c *TunnelConfig) bool {
+	if wantsFirewall(c) && !firewallPresent() {
+		return false
+	}
 	for _, v6 := range families(c) {
 		rules, err := netlink.RuleList(family(v6))
 		if err != nil {

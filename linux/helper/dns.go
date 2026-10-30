@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -83,8 +84,9 @@ type resolvedDomain struct {
 }
 
 func applyDNS(c *TunnelConfig, ifindex int) (*dnsState, error) {
-	servers, domains := c.dns()
-	st := &dnsState{servers: servers, domains: domains, mutedLinks: map[int32]bool{}, refusedLinks: map[int32]bool{}}
+	servers, domains := c.tunnelDNS()
+	// Links a previous helper muted before an upgrade or a crash are ours to turn back on.
+	st := &dnsState{servers: servers, domains: domains, mutedLinks: loadMutedLinks(), refusedLinks: map[int32]bool{}}
 	if len(servers) == 0 {
 		return st, nil
 	}
@@ -171,7 +173,46 @@ func (st *dnsState) muteOtherLinks(ifindex int) bool {
 		changed = true
 		log("dns: muted default route on %s", ifc.Name)
 	}
+	if changed {
+		saveMutedLinks(st.mutedLinks)
+	}
 	return changed
+}
+
+// The muted links are kept in /run/awgbar too: after an upgrade or a crash the next helper
+// must still know which links to turn back on.
+var mutedLinksPath = runtimeDir + "/dns-muted"
+
+func saveMutedLinks(links map[int32]bool) {
+	var b strings.Builder
+	for idx := range links {
+		fmt.Fprintf(&b, "%d\n", idx)
+	}
+	_ = writeAtomic(mutedLinksPath, []byte(b.String()), 0o600)
+}
+
+func loadMutedLinks() map[int32]bool {
+	links := map[int32]bool{}
+	data, _ := os.ReadFile(mutedLinksPath)
+	for _, f := range strings.Fields(string(data)) {
+		if idx, err := strconv.Atoi(f); err == nil {
+			links[int32(idx)] = true
+		}
+	}
+	return links
+}
+
+// unmuteLinks turns DNS default route back on for the links we turned it off on.
+func unmuteLinks(links map[int32]bool) {
+	if len(links) > 0 {
+		if m, err := resolvedManager(); err == nil {
+			for idx := range links {
+				_ = m.Call(resolvedIface+".SetLinkDefaultRoute", 0, idx, true).Err
+			}
+			_ = m.Call(resolvedIface+".FlushCaches", 0).Err
+		}
+	}
+	_ = os.Remove(mutedLinksPath)
 }
 
 func (st *dnsState) writeResolvConf() error {
@@ -244,11 +285,8 @@ func (st *dnsState) revert(ifindex int) {
 	if ifindex > 0 {
 		_ = m.Call(resolvedIface+".RevertLink", 0, int32(ifindex)).Err
 	}
-	for idx := range st.mutedLinks {
-		_ = m.Call(resolvedIface+".SetLinkDefaultRoute", 0, idx, true).Err
-	}
+	unmuteLinks(st.mutedLinks)
 	st.mutedLinks = map[int32]bool{}
-	_ = m.Call(resolvedIface+".FlushCaches", 0).Err
 }
 
 // check re-applies DNS that someone else changed; returns whether it had to.

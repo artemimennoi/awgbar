@@ -24,7 +24,7 @@ The two differ only in the Qt they use: Plasma's Breeze style exists only for th
 desktop itself is built on, so each package matches its Plasma.
 
 ```bash
-sudo apt install ./awgbar_0.1.1_qt5_amd64.deb
+sudo apt install ./awgbar_0.2.0_qt5_amd64.deb
 ```
 
 This is the only time a password is needed. The package starts the `awgbar-helper` service and
@@ -53,6 +53,14 @@ awgbar0 (TUN) + policy routing + DNS
   doesn't.
 - **Split tunnelling** («Bypass VPN»): listed subnets (`10.*`, `192.168.0.0/16`, `fd00::/8`, …)
   go through your normal network.
+- **Kill switch**: while a full-tunnel config is connected (or being brought back), an nftables
+  table `inet awgbar` lets out only `awgbar0`, the tunnel's own marked packets, local networks, the
+  Bypass VPN subnets and DHCP. That stops a hostile DHCP server pushing routes around the VPN
+  (option 121, "TunnelVision") and IPv6 leaking past a v4-only config. The tunnel's DNS servers
+  are reachable only through the tunnel.
+- **DNS**: a full-tunnel config without `DNS` uses 1.1.1.1 and 1.0.0.1 through the tunnel, as
+  AmneziaVPN does. The tunnel's name servers stay in the tunnel even when a Bypass VPN subnet
+  covers them (AmneziaDNS 172.29.172.254 inside `172.16.0.0/12`).
 - **IPv6 leak protection**: a config that sends `::/0` into the tunnel without an IPv6 address
   gets IPv6 blackholed instead of silently bypassing the VPN.
 
@@ -81,7 +89,9 @@ The usual ways a Linux VPN client breaks after sleep, and what the helper does i
 - **A kill switch that blocks its own reconnect.** The blackhole never catches the tunnel's
   marked packets, so blocking traffic around the VPN can't block the VPN itself.
 - **A stuck client.** The tunnel lives in the service, not the app. If the service crashes,
-  systemd restarts it and it reconnects; traffic stays blocked in between.
+  systemd restarts it and it reconnects; traffic stays blocked in between, for as long as it
+  takes (the app shows the tunnel as on, Disconnect lets traffic through). A package upgrade
+  tells the running service first, so it keeps its rules and DNS across the restart too.
 
 ## Security model
 
@@ -89,7 +99,8 @@ The usual ways a Linux VPN client breaks after sleep, and what the helper does i
   polkit (`io.github.artemimennoi.awgbar.control`): the user at the machine needs no password,
   anyone else (an ssh session) needs an administrator's.
 - Configs are parsed against an allowlist of AmneziaWG keys with validated values; anything else
-  (`PostUp` and the other hooks, `Table`, `FwMark`) is dropped. Nothing runs a shell.
+  (`PostUp` and the other hooks, `Table`, `FwMark`) is dropped. Nothing runs a shell. An import
+  never replaces an existing tunnel.
 - The service runs as root but with only `CAP_NET_ADMIN` and `CAP_NET_RAW`, no access to home
   directories and the rest of the systemd sandbox (see `packaging/awgbar-helper.service`).
 - **No logs by default.** With **Debug Log** on in the menu it writes `/var/log/awgbar-helper.log`
@@ -119,6 +130,8 @@ The helper also builds alone with `go build ./helper`; the app with CMake
 ## Known limitations
 
 - AWG Bar and the AmneziaVPN client must not run tunnels at the same time.
+- While connected, other VPNs (Tailscale and the like) can't reach their servers: the kill switch
+  lets only AWG Bar's tunnel out. Add their networks to Bypass VPN if you need them.
 - On links managed by systemd-networkd (servers, not NetworkManager desktops) resolved won't let
   the helper turn off their DNS default route, so DNS may also be asked there.
 - Amnezia Premium/Free keys can't be imported: their config is issued by Amnezia's API at

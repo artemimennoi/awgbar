@@ -161,6 +161,13 @@ func (t *Tunnel) stopDevice() {
 	deleteLink()
 }
 
+// detach stops the device but leaves the rules, the firewall and DNS as they are, for the
+// helper that replaces this one to pick up.
+func (t *Tunnel) detach() {
+	t.stopDevice()
+	log("%s detached for a restart", t.name)
+}
+
 func (t *Tunnel) stop() {
 	// resolved forgets a link's settings when it goes away, but needs the index to revert cleanly.
 	t.dns.revert(t.ifindex)

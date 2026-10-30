@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -138,5 +139,35 @@ func TestNetworks(t *testing.T) {
 	}
 	if strings.Join(invalid, " ") != "10.*.3 bogus" {
 		t.Errorf("invalid = %v", invalid)
+	}
+}
+
+func TestTunnelDNS(t *testing.T) {
+	const keys = "[Interface]\nPrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\nAddress = 10.8.1.2/32\n%s\n[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nAllowedIPs = %s\n"
+	for name, tc := range map[string]struct{ dns, allowed, want string }{
+		"own servers":        {"DNS = 9.9.9.9", "0.0.0.0/0", "[9.9.9.9]"},
+		"full tunnel, none":  {"", "0.0.0.0/0, ::/0", "[1.1.1.1 1.0.0.1]"},
+		"split tunnel, none": {"", "10.0.0.0/8", "[]"},
+		"search domain only": {"DNS = corp.example", "0.0.0.0/0", "[1.1.1.1 1.0.0.1]"},
+	} {
+		c, err := parseConfig(fmt.Sprintf(keys, tc.dns, tc.allowed))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if servers, _ := c.tunnelDNS(); fmt.Sprint(servers) != tc.want {
+			t.Errorf("%s: servers = %v, want %s", name, servers, tc.want)
+		}
+	}
+}
+
+func TestFirewallOnlyForFullTunnel(t *testing.T) {
+	for allowed, want := range map[string]bool{"0.0.0.0/0": true, "::/0": true, "10.0.0.0/8, fd00::/8": false} {
+		c, err := parseConfig("[Interface]\nPrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\nAddress = 10.8.1.2/32\n[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nAllowedIPs = " + allowed + "\n")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := wantsFirewall(c); got != want {
+			t.Errorf("%s: wantsFirewall = %v", allowed, got)
+		}
 	}
 }
