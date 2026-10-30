@@ -127,7 +127,9 @@ object KeyImport {
         return name
     }
 
-    fun isValidName(name: String) = Regex("^[a-zA-Z0-9_=+.-]{1,15}$").matches(name)
+    /** Any text is a fine title: control characters become spaces, and it is cut to 64 characters. */
+    fun cleanTitle(raw: String): String? =
+        raw.map { if (it.isISOControl()) ' ' else it }.joinToString("").trim().take(64).trim().ifEmpty { null }
 }
 
 /** Cyrillic to Latin, close to what macOS's toLatin transform gives for Russian and Kazakh. */

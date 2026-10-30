@@ -164,7 +164,8 @@ private fun groupShape(index: Int, count: Int): RoundedCornerShape {
 
 @Composable
 fun TunnelGroup(
-    names: List<String>,
+    /** File id to title, in display order. */
+    tunnels: Map<String, String>,
     selected: String?,
     active: String?,
     locked: Boolean,
@@ -173,6 +174,7 @@ fun TunnelGroup(
     onDelete: (String) -> Unit,
     onAdd: () -> Unit,
 ) {
+    val names = tunnels.keys.toList()
     val count = names.size + 1
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         names.forEachIndexed { i, name ->
@@ -196,7 +198,7 @@ fun TunnelGroup(
                     }
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f).alpha(if (dimmed) 0.45f else 1f)) {
-                        Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(tunnels.getValue(name), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         val host = remember(name) { Vpn.endpointHost(name) }
                         val sub = if (name == active) stringResource(R.string.active) else host
                         sub?.let {
@@ -359,20 +361,19 @@ private fun SwitchRow(icon: ImageVector, title: Int, subtitle: Int, checked: Boo
 }
 
 @Composable
-fun RenameDialog(old: String, renamingActive: Boolean, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+fun RenameDialog(old: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var text by remember(old) { mutableStateOf(old) }
-    val valid = KeyImport.isValidName(text)
+    val valid = KeyImport.cleanTitle(text) != null
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.Edit, null) },
         title = { Text(stringResource(R.string.rename)) },
         text = {
             OutlinedTextField(
-                text, { text = it }, singleLine = true, isError = !valid, shape = MaterialTheme.shapes.medium,
-                supportingText = { Text(stringResource(if (renamingActive) R.string.rename_active else R.string.name_rule)) },
+                text, { text = it }, singleLine = true, shape = MaterialTheme.shapes.medium,
             )
         },
-        confirmButton = { Button({ onConfirm(text) }, enabled = valid && !renamingActive) { Text(stringResource(R.string.ok)) } },
+        confirmButton = { Button({ onConfirm(text) }, enabled = valid && text.trim() != old) { Text(stringResource(R.string.ok)) } },
         dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }

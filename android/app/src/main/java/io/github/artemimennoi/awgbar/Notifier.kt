@@ -36,7 +36,7 @@ object Notifier {
         val n = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_status)
             .setColor(ShieldGreen.toArgb())
-            .setContentTitle(context.getString(R.string.connected, active))
+            .setContentTitle(context.getString(R.string.connected, Vpn.store.title(active)))
             .setContentText(listOfNotNull(endpoint, traffic).joinToString(" · "))
             .setStyle(NotificationCompat.BigTextStyle().bigText(listOfNotNull(endpoint, traffic).joinToString("\n")))
             .setContentIntent(open)

@@ -29,7 +29,7 @@ class Tile : TileService() {
         val s = Vpn.state.value
         tile.state = if (s.active != null) QsTile.STATE_ACTIVE else if (Vpn.store.selected == null) QsTile.STATE_UNAVAILABLE else QsTile.STATE_INACTIVE
         tile.label = getString(R.string.app_name)
-        tile.subtitle = s.active ?: Vpn.store.selected
+        tile.subtitle = (s.active ?: Vpn.store.selected)?.let { Vpn.store.title(it) }
         tile.icon = Icon.createWithResource(this, R.drawable.ic_status)
         tile.updateTile()
     }

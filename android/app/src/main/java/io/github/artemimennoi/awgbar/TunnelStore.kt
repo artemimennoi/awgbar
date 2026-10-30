@@ -15,8 +15,15 @@ class TunnelStore(context: Context) {
     private val dir = File(context.filesDir, "tunnels").apply { mkdirs() }
     private val prefs = context.getSharedPreferences("awgbar", Context.MODE_PRIVATE)
 
+    /** File ids, ordered by what the user sees. */
     fun names(): List<String> =
-        dir.listFiles { f -> f.name.endsWith(".conf") }.orEmpty().map { it.name.removeSuffix(".conf") }.sortedBy { it.lowercase() }
+        dir.listFiles { f -> f.name.endsWith(".conf") }.orEmpty().map { it.name.removeSuffix(".conf") }.sortedBy { title(it).lowercase() }
+
+    /** File id to title, in display order. */
+    fun titles(): Map<String, String> = names().associateWith(::title)
+
+    /** Human name as imported or renamed ("Резерв | #202 · NUE"); [name] is only the file id. */
+    fun title(name: String): String = prefs.getString("title:$name", null) ?: name
 
     fun read(name: String): TunnelConfig = TunnelConfig.parse(File(dir, "$name.conf").readText())
 
@@ -50,7 +57,7 @@ class TunnelStore(context: Context) {
             val file = File(dir, "$name.conf")
             val text = cfg.render()
             when {
-                existing == null -> result.added += name
+                existing == null -> { result.added += name; KeyImport.cleanTitle(t.name)?.let { prefs.edit().putString("title:$name", it).apply() } }
                 file.readText() == text -> { result.unchanged += name; continue }
                 else -> result.updated += name
             }
@@ -60,14 +67,12 @@ class TunnelStore(context: Context) {
         return result
     }
 
-    fun rename(old: String, new: String): Boolean {
-        if (!KeyImport.isValidName(new) || new in names()) return false
-        if (!File(dir, "$old.conf").renameTo(File(dir, "$new.conf"))) return false
-        if (prefs.getString("selected", null) == old) selected = new
-        return true
+    fun rename(name: String, title: String) {
+        KeyImport.cleanTitle(title)?.let { prefs.edit().putString("title:$name", it).apply() }
     }
 
     fun delete(name: String) {
         File(dir, "$name.conf").delete()
+        prefs.edit().remove("title:$name").apply()
     }
 }
