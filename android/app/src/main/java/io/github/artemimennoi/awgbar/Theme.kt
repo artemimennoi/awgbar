@@ -11,15 +11,34 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** The macOS app's "connected" green, used for the shield whatever the scheme. */
-val ShieldGreen = Color(0xFF30C26A)
+/** The Mac's system green, for the notification accent. */
+val ShieldGreen = Color(0xFF34C759)
+
+/**
+ * What every AWG Bar client colors the same way, as the Mac does: green when connected, orange
+ * while connecting or disconnecting. Everything else follows Material.
+ */
+@Immutable
+class StatusColors(val connected: Color, val busy: Color)
+
+private val LightStatus = StatusColors(connected = ShieldGreen, busy = Color(0xFFFF9500))
+private val DarkStatus = StatusColors(connected = Color(0xFF30D158), busy = Color(0xFFFF9F0A))
+private val LocalStatusColors = staticCompositionLocalOf { LightStatus }
+
+object Status {
+    val colors: StatusColors
+        @Composable @ReadOnlyComposable get() = LocalStatusColors.current
+}
 
 // Graphite neutrals with a green accent: the AWG Bar look rather than Material's default purple.
 private val Light = lightColorScheme(
@@ -64,17 +83,12 @@ private val AppShapes = Shapes(
 
 private val AppTypography = Typography().run {
     copy(
-        displaySmall = displaySmall.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp),
-        headlineLarge = headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp),
-        headlineMedium = headlineMedium.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.25).sp),
+        headlineSmall = headlineSmall.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.25).sp),
         titleLarge = titleLarge.copy(fontWeight = FontWeight.SemiBold),
         titleMedium = titleMedium.copy(fontWeight = FontWeight.SemiBold),
         labelLarge = labelLarge.copy(fontWeight = FontWeight.SemiBold),
     )
 }
-
-/** Small caps-like section label above a group of rows. */
-val SectionLabel = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.4.sp)
 
 @Composable
 fun AppTheme(wallpaperColors: Boolean, content: @Composable () -> Unit) {
@@ -85,5 +99,7 @@ fun AppTheme(wallpaperColors: Boolean, content: @Composable () -> Unit) {
         dark -> Dark
         else -> Light
     }
-    MaterialTheme(colorScheme = scheme, shapes = AppShapes, typography = AppTypography, content = content)
+    CompositionLocalProvider(LocalStatusColors provides if (dark) DarkStatus else LightStatus) {
+        MaterialTheme(colorScheme = scheme, shapes = AppShapes, typography = AppTypography, content = content)
+    }
 }

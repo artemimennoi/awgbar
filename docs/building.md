@@ -67,8 +67,9 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@17 ANDROID_HOME=/opt/homebrew/share/a
 ./gradlew :app:testDebugUnitTest assembleDebug
 ```
 
-The APKs are in `app/build/outputs/apk/debug/`, one per ABI plus `universal`. The debug build has
-its own id (`…awgbar.debug`) and installs next to the release one.
+The APK is `app/build/outputs/apk/debug/app-debug.apk`, for 64-bit ARM only (`abiFilters` in
+`app/build.gradle.kts`; the Android emulator on an Apple Silicon Mac is 64-bit ARM too). The debug
+build has its own id (`…awgbar.debug`) and installs next to the release one.
 
 Release builds are signed with your own key. Gradle reads `android/keystore.properties` or
 `~/.android/awgbar-release.properties` (neither is in git):
@@ -96,14 +97,18 @@ All clients share `VERSION` and one GitHub release `v<VERSION>`; the macOS bundl
 Android's `versionCode` derive from it (x.y.z → x·10000 + y·100 + z).
 
 1. Bump `VERSION` (and `HelperPaths.version` if the macOS helper changed), commit, merge to `main`.
-2. `make release` builds the DMG and the third-party sources, the four Linux packages and the four
-   APKs into `build.noindex/release`, writes `SHA256SUMS` over all of them and signs it into
-   `SHA256SUMS.sig`.
+2. `make release` builds the DMG and the third-party sources, the four Linux packages and the
+   APK into `build.noindex/release`, named `awgbar-<version>-<platform>-…`, writes
+   `SHA256SUMS` over all of them and signs it into `SHA256SUMS.sig`. It also writes
+   `build.noindex/release-notes.md`: the download table with direct links
+   (`scripts/release-download.md`). Add what changed below it.
 3. Publish them as a pre-release:
 
    ```bash
-   gh release create "v$(cat VERSION)" build.noindex/release/* --prerelease --title "AWG Bar $(cat VERSION) beta" --notes-file <notes>
+   gh release create "v$(cat VERSION)" build.noindex/release/* --prerelease --title "AWG Bar $(cat VERSION) beta" --notes-file build.noindex/release-notes.md
    ```
+
+   The DMG's name has to end in `-macos-arm64.dmg`: that is how installed apps find it.
 
 The macOS updater installs nothing without a valid `SHA256SUMS.sig`. It is made with the Ed25519
 key in `~/.config/awgbar/release-ed25519.key` (`swift scripts/sign.swift keygen <file>` makes one;

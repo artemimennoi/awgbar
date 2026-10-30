@@ -202,7 +202,7 @@ func unblockIPv6(_ name: String) {
 // MARK: - Kill switch
 
 /// While a full-tunnel config is up, a pf anchor lets out only the tunnel, the server, local
-/// networks, the "Bypass VPN" subnets and DHCP. Routes alone can be talked around: a DHCP server
+/// networks, the "Bypass" subnets and DHCP. Routes alone can be talked around: a DHCP server
 /// can push routes more specific than awg-quick's /1s (option 121, "TunnelVision"), a v4-only
 /// config leaves IPv6 alone, and if amneziawg-go dies its routes go with it. The anchor sits under
 /// com.apple, which the stock /etc/pf.conf evaluates, so the system ruleset is never rewritten;

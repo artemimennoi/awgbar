@@ -20,7 +20,7 @@ bring a tunnel up differs. Using them is described in the [README](../README.md)
   pushing routes more specific than the VPN's (option 121, "TunnelVision") and IPv6 slipping past
   a v4-only config. Split-tunnel configs (only some networks into the tunnel) get none.
 - **DNS.** The tunnel's DNS servers are used while connected and reached only through the tunnel,
-  even when a Bypass VPN subnet covers them (AmneziaDNS, 172.29.172.254, inside `172.16.0.0/12`).
+  even when a Bypass subnet covers them (AmneziaDNS, 172.29.172.254, inside `172.16.0.0/12`).
   A full-tunnel config without `DNS` uses 1.1.1.1 and 1.0.0.1, as AmneziaVPN does, rather than
   the router's.
 - **IPv6.** A config that sends `::/0` into the tunnel without an IPv6 address gets IPv6 blocked
@@ -49,7 +49,7 @@ LaunchDaemon) runs `amneziawg-go` and `awg-quick`, all built from pinned sources
 - Everything that runs as root afterwards is copied into root-owned locations at install time.
   The install script itself runs once from the app bundle with your password, like any admin
   prompt: only press Install Helper for an app from the releases.
-- Bypass VPN subnets ride awg-quick's server routes: pinned to the current gateway, moved by its
+- Bypass subnets ride awg-quick's server routes: pinned to the current gateway, moved by its
   route monitor when the network changes, removed on disconnect.
 - The kill switch is a pf anchor, `com.apple/AWGBar`, which the stock `/etc/pf.conf` already
   evaluates, so the system ruleset is never rewritten. pf is enabled with a reference token that
@@ -118,7 +118,7 @@ A single-screen Compose app with the `tunnel` module of
 
 - Tunnels live in app-private storage, excluded from cloud backups and from device-to-device
   transfer.
-- Bypass VPN subnets are cut out of the peers' AllowedIPs. A one-peer full-tunnel config keeps
+- Bypass subnets are cut out of the peers' AllowedIPs. A one-peer full-tunnel config keeps
   blocking the family it doesn't route (IPv6 for a v4-only config) either way.
 - Keys from links and other apps are imported only after you confirm. The quick settings tile and
   the notification's Disconnect ask to unlock the phone; the lock screen shows only that the VPN
@@ -130,7 +130,7 @@ A single-screen Compose app with the `tunnel` module of
 
 - AWG Bar and the AmneziaVPN client must not run tunnels at the same time (on macOS they share
   `/var/run/amneziawg`).
-- While connected, other VPNs can't reach their servers; add their networks to Bypass VPN.
+- While connected, other VPNs can't reach their servers; add their networks to Bypass.
 - macOS: if the Mac loses power while connected, the DNS servers awg-quick set stay in the network
   settings until the next connect or disconnect (as with upstream wg-quick).
 - Linux: on links managed by systemd-networkd (servers rather than NetworkManager desktops)

@@ -179,7 +179,7 @@ struct TunnelConfig {
     }
 
     /// What awg-quick gets: the stored config plus the fallback DNS, and host routes that keep
-    /// the name servers in the tunnel when a "Bypass VPN" network covers them (172.29.172.254,
+    /// the name servers in the tunnel when a "Bypass" network covers them (172.29.172.254,
     /// AmneziaDNS, inside an excluded 172.16.0.0/12). Their /32 beats the excluded route.
     func runtimeRender(excluded: [CIDR]) -> String {
         var interface = interface
