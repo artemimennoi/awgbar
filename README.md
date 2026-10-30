@@ -123,6 +123,10 @@ sudo /Library/PrivilegedHelperTools/local.awgbar.helper --print-config <tunnel>
 
 ## Releases
 
+CI (GitHub Actions, `.github/workflows/ci.yml`) tests the Linux helper and builds the macOS app,
+both Linux packages and the Android app with its unit tests on every pull request and push to
+`main`. Releases are built and signed locally, so the signing keys never leave the Mac.
+
 `VERSION` holds the one version all clients use. `make release` builds the DMG, the four Linux
 packages and the Android APKs into `build.noindex/release` and writes `SHA256SUMS` with its
 signature; publish them as release `v$(cat VERSION)`. Signing needs the Ed25519 key in

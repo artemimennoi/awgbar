@@ -1,0 +1,99 @@
+# Builds and tests all three clients on every pull request and push to main.
+# Releases are still built and signed locally (`make release`): the signing keys never leave the Mac.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-helper:
+    name: Linux helper
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: linux
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: linux/go.mod
+          cache-dependency-path: linux/go.sum
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l helper)
+          [ -z "$unformatted" ] || { echo "not gofmt'ed: $unformatted"; exit 1; }
+      - run: go vet ./helper
+      - run: go test ./helper
+
+  linux-packages:
+    name: Linux package (${{ matrix.flavor }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [qt5, qt6]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: linux/go.mod
+          cache-dependency-path: linux/go.sum
+      # The same container build as a release: the app compiles against the oldest distribution
+      # each package targets.
+      - run: make -C linux deb-${{ matrix.flavor }} ARCH=amd64
+      - uses: actions/upload-artifact@v7
+        with:
+          name: awgbar-${{ matrix.flavor }}-amd64
+          path: linux/build/dist/*.deb
+          retention-days: 7
+
+  macos:
+    name: macOS app
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+      # amneziawg-go, awg and bash at the revisions the Makefile pins.
+      - uses: actions/cache@v6
+        with:
+          path: .deps
+          key: deps-${{ runner.os }}-${{ hashFiles('Makefile') }}
+      - run: make app
+      - run: codesign --verify --deep --strict "build.noindex/AWG Bar.app"
+
+  android:
+    name: Android app
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0 ndk;27.2.12479018 cmake;3.22.1"
+      # Gradle's caches include the Go toolchain the tunnel library downloads (~/.gradle/caches/golang).
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/**/*.gradle.kts', 'android/gradle/libs.versions.toml', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/tunnel/tools/libwg-go/Makefile') }}
+      - run: ./gradlew --no-daemon :app:testDebugUnitTest assembleDebug
