@@ -20,6 +20,7 @@ add_executable(awgbar
     src/keyimport.cpp
     src/glyph.cpp
     src/window.cpp
+    src/powerbutton.cpp
     src/tray.cpp
     src/l10n.cpp
     src/autostart.cpp
