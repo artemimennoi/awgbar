@@ -38,4 +38,26 @@ class TunnelConfigTest {
         assertTrue(allowed.contains("192.0.0.0/9"))
         assertTrue(allowed.contains("192.169.0.0/16"))
     }
+
+    @Test fun fallbackDnsForFullTunnelOnly() {
+        val full = TunnelConfig.parse(conf).toBackendConfig(emptyList())
+        assertEquals(listOf("1.1.1.1", "1.0.0.1"), full.`interface`.dnsServers.map { it.hostAddress })
+        val split = TunnelConfig.parse(conf.replace("AllowedIPs = 0.0.0.0/0", "AllowedIPs = 10.0.0.0/8")).toBackendConfig(emptyList())
+        assertTrue(split.`interface`.dnsServers.isEmpty())
+        val own = TunnelConfig.parse(conf.replace("Address = 10.8.1.2/32", "Address = 10.8.1.2/32\nDNS = 9.9.9.9")).toBackendConfig(emptyList())
+        assertEquals(listOf("9.9.9.9"), own.`interface`.dnsServers.map { it.hostAddress })
+    }
+
+    @Test fun bypassKeepsNameServersInTheTunnel() {
+        val amneziaDns = conf.replace("Address = 10.8.1.2/32", "Address = 10.8.1.2/32\nDNS = 172.29.172.254")
+        val backend = TunnelConfig.parse(amneziaDns).toBackendConfig(listOf(Cidr.parse("172.16.0.0/12")!!))
+        val allowed = backend.peers[0].allowedIps.map { it.toString() }
+        assertTrue(allowed.contains("172.29.172.254/32"))
+        assertFalse(allowed.any { it.startsWith("172.16.0.0/") })
+    }
+
+    @Test fun fullTunnelSurvivesBypass() {
+        assertTrue(TunnelConfig.parse(conf).isFullTunnel)
+        assertFalse(TunnelConfig.parse(conf.replace("AllowedIPs = 0.0.0.0/0", "AllowedIPs = 10.0.0.0/8")).isFullTunnel)
+    }
 }

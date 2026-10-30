@@ -398,6 +398,19 @@ func (c *TunnelConfig) dns() (servers []netip.Addr, domains []string) {
 	return servers, domains
 }
 
+// Used when a full-tunnel config names no DNS server, as AmneziaVPN does: otherwise the system
+// would keep asking the router, outside the tunnel.
+var fallbackDNS = []netip.Addr{netip.MustParseAddr("1.1.1.1"), netip.MustParseAddr("1.0.0.1")}
+
+// tunnelDNS: the name servers used while connected, the config's or the fallback.
+func (c *TunnelConfig) tunnelDNS() (servers []netip.Addr, domains []string) {
+	servers, domains = c.dns()
+	if len(servers) == 0 && c.fullTunnel(false) && c.hasAddress(false) {
+		servers = fallbackDNS
+	}
+	return servers, domains
+}
+
 func (c *TunnelConfig) render(includeTitle bool) string {
 	var b strings.Builder
 	if includeTitle && c.Title != "" {

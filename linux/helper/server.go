@@ -20,6 +20,12 @@ var (
 	// mu serializes everything that touches the tunnel: requests and the watchdog.
 	mu      sync.Mutex
 	current *Tunnel
+	// The tunnel reconnect() is bringing back after a restart: shown as up, its rules already
+	// block traffic, and disconnecting it has to undo them.
+	reconnecting string
+	// Set by prepareRestart (the package's postinst, right before restarting us for an upgrade):
+	// the stop that follows keeps the rules and DNS, so nothing leaks until the new helper is back.
+	keepUntil time.Time
 )
 
 func withTunnel(f func(*Tunnel)) {
@@ -50,7 +56,7 @@ func listTunnels() []TunnelInfo {
 		if !ok || !isValidTunnelName(name) {
 			continue
 		}
-		info := TunnelInfo{Name: name, Active: current != nil && current.name == name}
+		info := TunnelInfo{Name: name, Active: current != nil && current.name == name || current == nil && reconnecting == name}
 		if c, err := loadConfig(name); err == nil {
 			info.Endpoint, info.Title = c.endpoint(), c.Title
 		}
@@ -111,6 +117,11 @@ func down(forget bool) {
 		current = nil
 	}
 	if forget {
+		if reconnecting != "" {
+			// What the previous helper left in place for the reconnect.
+			cleanUpStaleState(false)
+			reconnecting = ""
+		}
 		_ = os.Remove(activePath)
 	}
 }
@@ -138,6 +149,11 @@ func handle(req *Request) (*Response, error) {
 		name, err := requireName(req, false)
 		if err != nil {
 			return nil, err
+		}
+		// The app always picks a free name; replacing a tunnel in place would let anything that
+		// may talk to us swap the server behind a name the user trusts.
+		if _, err := os.Stat(confPath(name)); err == nil {
+			return nil, fail("Tunnel %s already exists", name)
 		}
 		c, err := parseConfig(req.Config)
 		if err != nil {
@@ -230,7 +246,7 @@ func handle(req *Request) (*Response, error) {
 		if current != nil {
 			// Only the exclusion rules change; the tunnel itself keeps running.
 			current.excluded = networks
-			if err := setExcludedRules(networks); err != nil {
+			if err := setExcludedRules(current.config, networks); err != nil {
 				return nil, fail("Cannot update routing rules: %v", err)
 			}
 		}
@@ -245,6 +261,10 @@ func handle(req *Request) (*Response, error) {
 		if current != nil {
 			current.kick("requested")
 		}
+		return listResponse(), nil
+
+	case "prepareRestart":
+		keepUntil = time.Now().Add(2 * time.Minute)
 		return listResponse(), nil
 	}
 	return nil, fail("Unknown command %s", req.Command)
@@ -309,7 +329,7 @@ func respond(c *net.UnixConn) *Response {
 	if err := json.Unmarshal(line, &req); err != nil {
 		return &Response{Error: "Bad request: " + err.Error()}
 	}
-	if req.Command == "kick" && cred.Uid != 0 {
+	if (req.Command == "kick" || req.Command == "prepareRestart") && cred.Uid != 0 {
 		return &Response{Error: "Permission denied"}
 	}
 	if err := authorize(cred, !readOnly[req.Command]); err != nil {

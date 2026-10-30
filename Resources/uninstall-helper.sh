@@ -17,6 +17,14 @@ for conf in "$SUPPORT"/tunnels/*.conf; do
 	[[ -e $SUPPORT/run/$name.v6block ]] && route -q -n delete -inet6 ::/1 ::1 && route -q -n delete -inet6 8000::/1 ::1
 done
 
+# The kill switch: the pf anchor and the pf enable reference the helper took.
+for marker in "$SUPPORT"/run/*.pf; do
+	[[ -e $marker ]] || continue
+	pfctl -q -a com.apple/AWGBar -F all 2>/dev/null
+	token="$(<"$marker")"
+	[[ -n $token ]] && pfctl -q -X "$token" 2>/dev/null
+done
+
 launchctl bootout "system/$LABEL" 2>/dev/null
 rm -f "/Library/LaunchDaemons/$LABEL.plist" "/Library/PrivilegedHelperTools/$LABEL" /var/run/awgbar.sock /var/log/awgbar-helper.log
 # run/ holds sanitized copies of the configs, private keys included.

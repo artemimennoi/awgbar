@@ -26,6 +26,9 @@ func main() {
 		case "--kick":
 			// Debugging aid: do what happens after waking up, for the running helper.
 			os.Exit(sendCommand("kick"))
+		case "--prepare-restart":
+			// For the package's postinst: the restart that follows keeps the tunnel's rules.
+			os.Exit(sendCommand("prepareRestart"))
 		case "--cleanup":
 			// For package removal: undo anything a crashed helper left behind.
 			cleanUpStaleState(false)
@@ -37,8 +40,8 @@ func main() {
 	}
 
 	_, err := os.Stat(activePath)
-	// After a crash or an upgrade the blackholes stay until the tunnel is back: nothing leaks
-	// around the VPN while the helper reconnects.
+	// After a crash or an upgrade the rules, the firewall and DNS stay until the tunnel is back:
+	// nothing leaks around the VPN while the helper reconnects.
 	cleanUpStaleState(err == nil)
 	go reconnect()
 	go watch()
@@ -49,7 +52,11 @@ func main() {
 		mu.Lock()
 		// Keep the active marker: systemd keeps /run/awgbar across a restart (upgrade, crash),
 		// and the next start reconnects. A stop or reboot clears the directory.
-		down(false)
+		if current != nil && time.Now().Before(keepUntil) {
+			current.detach()
+		} else {
+			down(false)
+		}
 		os.Exit(0)
 	}()
 	if err := serve(); err != nil {
@@ -63,12 +70,15 @@ func usage() {
 	os.Exit(2)
 }
 
-// cleanUpStaleState removes what a helper that died without stopping left behind.
-func cleanUpStaleState(keepRules bool) {
+// cleanUpStaleState removes what a helper that died or restarted left behind. keep leaves the
+// rules, the firewall and DNS for the reconnect; reconnect() or a disconnect cleans them up.
+func cleanUpStaleState(keep bool) {
 	deleteLink()
-	if !keepRules {
-		removeRules()
+	if keep {
+		return
 	}
+	removeRules()
+	unmuteLinks(loadMutedLinks())
 	restoreResolvConf()
 }
 
@@ -83,29 +93,36 @@ func reconnect() {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	// Started at boot or right after a restart the network may not be there yet.
-	for attempt := 0; attempt < 10; attempt++ {
-		if _, err := os.Stat(activePath); err != nil || current != nil {
+	reconnecting = name
+	// Right after a restart the network may not be there yet, and after a crash the server may
+	// be down for a while: keep blocking and trying until the tunnel is back or the user
+	// disconnects, as a kill switch should. The app shows the tunnel as on meanwhile.
+	for delay := 3 * time.Second; ; delay = min(2*delay, 30*time.Second) {
+		if _, err := os.Stat(activePath); err != nil || current != nil || reconnecting != name {
 			return // the user disconnected or connected something else meanwhile
 		}
-		err = up(name)
-		if err == nil {
+		c, err := loadConfig(name)
+		if err != nil {
+			// Deleted or unreadable: it will never come back, so stop blocking.
+			log("reconnect %s: %v, giving up", name, err)
+			cleanUpStaleState(false)
+			_ = os.Remove(activePath)
+			reconnecting = ""
+			return
+		}
+		if err = up(name); err == nil {
 			log("reconnected %s", name)
+			reconnecting = ""
 			return
 		}
 		log("reconnect %s: %v", name, err)
 		// A failed start removes the rules; keep blocking until the next attempt.
-		if c, cerr := loadConfig(name); cerr == nil {
-			excluded, _ := parseNetworkList(strings.Join(loadExcluded(), "\n"))
-			_ = addRules(c, excluded)
-		}
+		excluded, _ := parseNetworkList(strings.Join(loadExcluded(), "\n"))
+		_ = addRules(c, excluded)
 		mu.Unlock()
-		time.Sleep(3 * time.Second)
+		time.Sleep(delay)
 		mu.Lock()
 	}
-	// Give up and let traffic through; the app shows the tunnel as disconnected.
-	removeRules()
-	_ = os.Remove(activePath)
 }
 
 func printConfig(name string) int {
@@ -119,6 +136,11 @@ func printConfig(name string) int {
 		return 1
 	}
 	fmt.Print(c.render(false))
+	if servers, _ := c.dns(); len(servers) == 0 {
+		if fallback, _ := c.tunnelDNS(); len(fallback) > 0 {
+			fmt.Printf("# no DNS in the config, using %v\n", fallback)
+		}
+	}
 	if len(c.Dropped) > 0 {
 		fmt.Printf("# ignored: %s\n", strings.Join(c.Dropped, ", "))
 	}

@@ -39,8 +39,9 @@ object Vpn {
         private set
     private var current: AppTunnel? = null
 
-    private class AppTunnel(private val tunnelName: String) : Tunnel {
+    private class AppTunnel(private val tunnelName: String, private val fullTunnel: Boolean) : Tunnel {
         override fun getName(): String = tunnelName
+        override fun isFullTunnel() = fullTunnel
         override fun onStateChange(newState: Tunnel.State) {
             if (newState == Tunnel.State.DOWN) _state.update { if (it.active == tunnelName) it.copy(active = null, rx = 0, tx = 0, rxRate = 0, txRate = 0) else it }
             Tile.refresh(app)
@@ -65,8 +66,9 @@ object Vpn {
         scope.launch {
             try {
                 val bypass = Cidr.parseList(store.bypass).first
-                val config = store.read(name).toBackendConfig(bypass)
-                val tunnel = AppTunnel(name)
+                val stored = store.read(name)
+                val config = stored.toBackendConfig(bypass)
+                val tunnel = AppTunnel(name, stored.isFullTunnel)
                 current?.let { if (it.name != name) backend.setState(it, Tunnel.State.DOWN, null) }
                 backend.setState(tunnel, Tunnel.State.UP, config)
                 current = tunnel

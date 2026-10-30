@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
-project(awgbar VERSION 0.1.1 LANGUAGES CXX)
+# One version for all AWG Bar clients, in the repository's VERSION file.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/../../VERSION" AWGBAR_RELEASE LIMIT_COUNT 1)
+project(awgbar VERSION ${AWGBAR_RELEASE} LANGUAGES CXX)
 
 # Built against the Qt the distribution's Plasma uses, so the Breeze style applies:
 # Qt 5 for Plasma 5 (Ubuntu 22.04/24.04, Debian 12), Qt 6 for Plasma 6 (Debian 13, Ubuntu 25.04+).

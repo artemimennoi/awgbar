@@ -21,8 +21,10 @@ android {
         applicationId = "io.github.artemimennoi.awgbar"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.1.2"
+        // One version for all AWG Bar clients, in the repository's VERSION file;
+        // x.y.z becomes versionCode x*10000 + y*100 + z.
+        versionName = rootProject.file("../VERSION").readText().trim()
+        versionCode = versionName!!.split(".").map(String::toInt).let { (x, y, z) -> x * 10000 + y * 100 + z }
     }
 
     signingConfigs {

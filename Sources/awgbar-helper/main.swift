@@ -163,7 +163,10 @@ func listTunnels() -> [TunnelInfo] {
         .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         .map { name in
             let config = try? loadConfig(name)
-            return TunnelInfo(name: name, active: realInterface(name) != nil, endpoint: config?.endpoint, title: config?.title)
+            let up = realInterface(name) != nil
+            let blocked = !up && killSwitchArmed(name)
+            return TunnelInfo(name: name, active: up || blocked, endpoint: config?.endpoint, title: config?.title,
+                              blocked: blocked ? true : nil)
         }
 }
 
@@ -196,13 +199,91 @@ func unblockIPv6(_ name: String) {
     try? fm.removeItem(atPath: ipv6BlockMarker(name))
 }
 
+// MARK: - Kill switch
+
+/// While a full-tunnel config is up, a pf anchor lets out only the tunnel, the server, local
+/// networks, the "Bypass VPN" subnets and DHCP. Routes alone can be talked around: a DHCP server
+/// can push routes more specific than awg-quick's /1s (option 121, "TunnelVision"), a v4-only
+/// config leaves IPv6 alone, and if amneziawg-go dies its routes go with it. The anchor sits under
+/// com.apple, which the stock /etc/pf.conf evaluates, so the system ruleset is never rewritten;
+/// pf is enabled with a reference token that is released again on disconnect. The rules stay when
+/// the tunnel dies: the app then shows it as blocked until the user disconnects.
+let pfAnchor = "com.apple/AWGBar"
+func killSwitchMarker(_ name: String) -> String { "\(HelperPaths.runtime)/\(name).pf" }
+func killSwitchArmed(_ name: String) -> Bool { fm.fileExists(atPath: killSwitchMarker(name)) }
+
+let localNetworks = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "224.0.0.0/4",
+                     "255.255.255.255/32", "fc00::/7", "fe80::/10", "ff00::/8"].compactMap(CIDR.init)
+
+/// The passes are stateless: pf's default "flags S/SA keep state" would match only new TCP
+/// connections and cut every one already open, localhost included, the moment the VPN connects.
+func killSwitchRules(utun: String, endpoints: [String], dns: [String], excluded: [CIDR]) -> String {
+    func family(_ address: String) -> String { address.contains(":") ? "inet6" : "inet" }
+    var lines = [
+        "# AWG Bar kill switch, loaded while the VPN is up.",
+        "pass out quick on lo0 all no state",
+        "pass out quick on \(utun) all no state",
+    ]
+    lines += endpoints.map { "pass out quick \(family($0)) from any to \($0) no state" }
+    // The tunnel's name servers only through the tunnel.
+    lines += dns.map { "block return out quick \(family($0)) from any to \($0)" }
+    let allowed = localNetworks + excluded
+    for (v6, name) in [(false, "inet"), (true, "inet6")] {
+        let nets = allowed.filter { $0.isV6 == v6 }.map(\.description)
+        if !nets.isEmpty { lines.append("pass out quick \(name) from any to { \(nets.joined(separator: ", ")) } no state") }
+    }
+    lines.append("pass out quick inet proto udp from any port 68 to any port 67 no state")
+    lines.append("block return out quick all")
+    return lines.joined(separator: "\n") + "\n"
+}
+
+/// Loads (or replaces) the rules for a tunnel that is up. Best effort: a pf failure is logged and
+/// the tunnel stays up without it rather than not connecting at all.
+func armKillSwitch(_ name: String, _ config: TunnelConfig) {
+    guard config.fullTunnel, let utun = realInterface(name) else { return }
+    let endpoints = wgShow(utun, "endpoints").compactMap { row -> String? in
+        guard row.count > 1, let colon = row[1].lastIndex(of: ":") else { return nil }
+        let host = row[1][..<colon].trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        return CIDR.parseAddress(host) != nil ? host : nil
+    }
+    let rules = killSwitchRules(utun: utun, endpoints: endpoints, dns: config.tunnelDNS, excluded: loadExcluded())
+    let rulesPath = "\(HelperPaths.runtime)/killswitch.rules"
+    do {
+        try writeSecret(rulesPath, rules)
+    } catch {
+        log("kill switch: \(error.localizedDescription)")
+        return
+    }
+    defer { try? fm.removeItem(atPath: rulesPath) }
+    let (status, output) = run("/sbin/pfctl", ["-q", "-a", pfAnchor, "-f", rulesPath], timeout: 10)
+    guard status == 0 else {
+        log("kill switch: pfctl -f failed (\(status)): \(output)")
+        return
+    }
+    if !killSwitchArmed(name) {
+        let (_, enable) = run("/sbin/pfctl", ["-E"], timeout: 10)
+        let token = enable.range(of: "Token : [0-9]+", options: .regularExpression)
+            .map { String(enable[$0].dropFirst("Token : ".count)) } ?? ""
+        fm.createFile(atPath: killSwitchMarker(name), contents: Data(token.utf8), attributes: [.posixPermissions: 0o600])
+    }
+    log("kill switch on for \(name) via \(utun), server \(endpoints)")
+}
+
+func disarmKillSwitch(_ name: String) {
+    guard let token = try? String(contentsOfFile: killSwitchMarker(name), encoding: .utf8) else { return }
+    _ = run("/sbin/pfctl", ["-q", "-a", pfAnchor, "-F", "all"], timeout: 10)
+    if !token.isEmpty { _ = run("/sbin/pfctl", ["-q", "-X", token], timeout: 10) }
+    try? fm.removeItem(atPath: killSwitchMarker(name))
+    log("kill switch off for \(name)")
+}
+
 // MARK: - Up / down
 
 func up(_ name: String) throws {
     let config = try loadConfig(name)
     if !config.dropped.isEmpty { log("\(name): ignored keys \(config.dropped.joined(separator: ", "))") }
     let path = runtimePath(name)
-    try writeSecret(path, config.render(includeTitle: false))
+    try writeSecret(path, config.runtimeRender(excluded: loadExcluded()))
     // A monitor left over from a previous session with this tunnel would undo our routes on exit.
     waitForMonitorExit(path)
 
@@ -213,18 +294,25 @@ func up(_ name: String) throws {
         throw HelperError("awg-quick up failed (\(status))", log: output)
     }
     if config.leaksIPv6 { blockIPv6(name) }
+    armKillSwitch(name, config)
 }
 
-func down(_ name: String) throws {
+/// keepKillSwitch: for a reconnect with new settings, the next up() replaces the rules, and
+/// nothing gets out in between. A tunnel whose interface is gone only has its rules removed.
+func down(_ name: String, keepKillSwitch: Bool = false) throws {
     let runtime = runtimePath(name)
-    // Tunnels brought up by helper v3 and older ran straight from the stored config.
-    let path = fm.fileExists(atPath: runtime) ? runtime : confPath(name)
-    let (status, output) = awgQuick("down", path)
-    log("down \(name): \(status)\n\(output)")
-    waitForMonitorExit(path)
+    var result: (status: Int32, output: String) = (0, "")
+    if realInterface(name) != nil {
+        // Tunnels brought up by helper v3 and older ran straight from the stored config.
+        let path = fm.fileExists(atPath: runtime) ? runtime : confPath(name)
+        result = awgQuick("down", path)
+        log("down \(name): \(result.status)\n\(result.output)")
+        waitForMonitorExit(path)
+    }
     unblockIPv6(name)
+    if !keepKillSwitch { disarmKillSwitch(name) }
     try? fm.removeItem(atPath: runtime)
-    guard status == 0 else { throw HelperError("awg-quick down failed (\(status))", log: output) }
+    guard result.status == 0 else { throw HelperError("awg-quick down failed (\(result.status))", log: result.output) }
 }
 
 /// After a reboot or a crash nothing is up, but markers and runtime configs may be left behind.
@@ -233,6 +321,9 @@ func cleanUpStaleState() {
     for file in files {
         let name = (file as NSString).deletingPathExtension
         guard realInterface(name) == nil else { continue }
+        // After a reboot pf starts empty and the token is void; after a helper restart the rules
+        // of a dead tunnel would block with nothing in the app to turn them off.
+        disarmKillSwitch(name)
         unblockIPv6(name)
         try? fm.removeItem(atPath: "\(HelperPaths.runtime)/\(file)")
     }
@@ -276,6 +367,9 @@ func handle(_ request: Request) throws -> Response {
 
     case .importConfig:
         let name = try requireName(request, mustExist: false)
+        // The app always picks a free name; replacing a tunnel in place would let anything that
+        // may talk to us swap the server behind a name the user trusts.
+        guard !fm.fileExists(atPath: confPath(name)) else { throw HelperError("Tunnel \(name) already exists") }
         var config = try TunnelConfig(parsing: request.config ?? "")
         if let existing = listTunnels().first(where: { $0.name != name && (try? loadConfig($0.name))?.identity == config.identity }) {
             throw HelperError("Already added as \(existing.displayName)", code: "duplicate:\(existing.name)")
@@ -296,7 +390,7 @@ func handle(_ request: Request) throws -> Response {
 
     case .delete:
         let name = try requireName(request)
-        if realInterface(name) != nil { try? down(name) }
+        if realInterface(name) != nil || killSwitchArmed(name) { try? down(name) }
         try fm.removeItem(atPath: confPath(name))
         log("deleted \(name)")
         return listResponse()
@@ -307,12 +401,16 @@ func handle(_ request: Request) throws -> Response {
         for other in listTunnels() where other.active && other.name != name {
             try? down(other.name)
         }
-        if realInterface(name) == nil { try up(name) }
+        if realInterface(name) == nil {
+            // A blocked tunnel (its interface died) is brought up afresh behind its rules.
+            try? down(name, keepKillSwitch: true)
+            try up(name)
+        }
         return listResponse()
 
     case .down:
         let name = try requireName(request)
-        if realInterface(name) != nil { try down(name) }
+        if realInterface(name) != nil || killSwitchArmed(name) { try down(name) }
         return listResponse()
 
     case .setExcluded:
@@ -323,7 +421,7 @@ func handle(_ request: Request) throws -> Response {
         log("excluded: \(networks.map(\.description).joined(separator: ", "))")
         // The route monitor captured the old list at up time, so an active tunnel has to reconnect.
         for tunnel in listTunnels() where tunnel.active {
-            try down(tunnel.name)
+            try down(tunnel.name, keepKillSwitch: true)
             try up(tunnel.name)
         }
         return listResponse()
@@ -388,9 +486,10 @@ func serve() -> Never {
 if let i = CommandLine.arguments.firstIndex(of: "--print-config"), i + 1 < CommandLine.arguments.count {
     do {
         let config = try loadConfig(CommandLine.arguments[i + 1])
-        print(config.render(includeTitle: false), terminator: "")
+        print(config.runtimeRender(excluded: loadExcluded()), terminator: "")
         if !config.dropped.isEmpty { print("# ignored: \(config.dropped.joined(separator: ", "))") }
         if config.leaksIPv6 { print("# IPv6 will be blocked: ::/0 without an IPv6 address") }
+        if config.fullTunnel { print("# kill switch: pf anchor \(pfAnchor) while connected") }
         let excluded = loadExcluded()
         if !excluded.isEmpty { print("# routed outside the tunnel: \(excluded.map(\.description).joined(separator: " "))") }
         exit(0)

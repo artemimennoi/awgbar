@@ -58,7 +58,17 @@ class MainActivity : ComponentActivity() {
     }
 
     fun readUri(uri: Uri): Pair<String, String>? = runCatching {
-        val text = contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) }
+        val text = contentResolver.openInputStream(uri)!!.use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(8192)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                out.write(buf, 0, n)
+                if (out.size() > KeyImport.MAX_SIZE) return null
+            }
+            out.toString(Charsets.UTF_8.name())
+        }
         val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
             if (it.moveToFirst()) it.getString(0) else null
         } ?: uri.lastPathSegment ?: "awg"
@@ -113,8 +123,20 @@ private fun MainScreen(
 
     fun import(text: String, name: String) = importWith { Vpn.store.import(text, name) }
 
+    // Another app or a link handed over a key: show what it is and import only on the user's say,
+    // or anything on the phone could slip in a server that the next Connect (or always-on) uses.
+    var offered by remember { mutableStateOf<Pair<Pair<String, String>, List<ImportedTunnel>>?>(null) }
     val pending by incoming.collectAsState()
-    LaunchedEffect(pending) { pending?.let { (t, n) -> import(t, n); incoming.value = null } }
+    LaunchedEffect(pending) {
+        pending?.let { (t, n) ->
+            try {
+                offered = (t to n) to KeyImport.parse(t, n)
+            } catch (e: ImportError) {
+                say(context.getString(e.res))
+            }
+            incoming.value = null
+        }
+    }
     LaunchedEffect(state.error) { state.error?.let { say(it); Vpn.clearError() } }
 
     val vpnPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -221,6 +243,15 @@ private fun MainScreen(
             onResult = { data -> scanning = false; importWith { Vpn.store.importQr(data) } },
             onDismiss = { scanning = false },
         )
+    }
+    offered?.let { (source, tunnels) ->
+        ImportConfirmDialog(
+            tunnels.map { t -> t.name to runCatching { TunnelConfig.parse(t.config).endpoint }.getOrNull() },
+            onDismiss = { offered = null },
+        ) {
+            offered = null
+            import(source.first, source.second)
+        }
     }
     renaming?.let { old ->
         RenameDialog(Vpn.store.title(old), onDismiss = { renaming = null }) { new ->

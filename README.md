@@ -1,111 +1,84 @@
 # AWG Bar
 
-A small native macOS menu bar client for [AmneziaWG](https://docs.amnezia.org/documentation/amnezia-wg/).
-It lives only in the menu bar: no Dock icon, no main window. Imports AmneziaVPN keys (`vpn://…`)
-and plain AmneziaWG `.conf` files, connects with one button, shows the server and traffic, and can
-send chosen subnets around the VPN.
+A small [AmneziaWG](https://docs.amnezia.org/documentation/amnezia-wg/) VPN client for macOS
+(menu bar), Linux (tray) and Android. Paste an AmneziaVPN key (`vpn://…`) or open an AmneziaWG
+`.conf`, press Connect. It shows the server and traffic, can send chosen subnets around the VPN,
+and blocks traffic outside the tunnel while connected (kill switch).
 
-There is also a Linux version for Ubuntu 22.04+ and Debian 12+, see [linux/README.md](linux/README.md).
-The Android app (Android 10+, APK from GitHub Releases) is in [android/README.md](android/README.md).
+It is in beta. Get it from [the latest release](https://github.com/artemimennoi/awgbar/releases);
+to build it yourself, see [docs/building.md](docs/building.md).
 
-No paid Apple Developer account is needed: instead of a Network Extension it uses a small root
-helper (a LaunchDaemon) that runs `amneziawg-go` and `awg-quick`.
+## Download
 
-## Install from a release
+All three clients are released together under one version: each release holds every file below.
 
-AWG Bar is in beta: releases are published as pre-releases.
+| System | File | Needs |
+|---|---|---|
+| macOS | `awgbar-<version>-macos-arm64.dmg` | Apple Silicon, macOS 26+ |
+| Ubuntu 22.04, 24.04, Debian 12 | `awgbar_<version>_qt5_<amd64\|arm64>.deb` | |
+| Ubuntu 25.04+, Debian 13 | `awgbar_<version>_qt6_<amd64\|arm64>.deb` | |
+| Android | `awgbar-android-<version>-arm64-v8a.apk` (`universal` if unsure) | Android 10+ |
 
-Apple Silicon, macOS 26 or later. Download `awgbar-<version>-macos-arm64.dmg` from
-[Releases](https://github.com/artemimennoi/awgbar/releases), open it and drag `AWG Bar` to
-`Applications`. The app is ad-hoc signed, not notarized, so macOS blocks the first launch: allow it
-in System Settings → Privacy & Security → **Open Anyway**, or clear the quarantine flag once:
+The two Linux packages differ only in the Qt they use, so the app matches your desktop's style.
 
-```bash
-xattr -dr com.apple.quarantine "/Applications/AWG Bar.app"
-```
+## Install
 
-## Updates
+**macOS.** Open the DMG and drag AWG Bar to Applications. The app isn't notarized, so the first
+launch is blocked: allow it in System Settings → Privacy & Security → **Open Anyway**, or run
+`xattr -dr com.apple.quarantine "/Applications/AWG Bar.app"`. Click the shield in the menu bar
+and press **Install Helper** (your password, once): the helper is what brings the tunnel up.
 
-Settings menu → **Check for Updates…** looks at this repository's releases (betas included); the
-app never checks on its own. If there is a newer version, **Update to x.y.z** appears in the
-window: it downloads the DMG, verifies it against the release's `SHA256SUMS` and its code
-signature, replaces the app in place and relaunches it, keeping the VPN connected. The app must be
-in a folder you can write to, such as `/Applications`. The checksum guards against a broken
-download; authenticity relies on HTTPS to GitHub.
+**Linux.** `sudo apt install ./awgbar_<version>_qt5_amd64.deb` (your file name). That's the only
+password; AWG Bar appears in the applications menu and starts at login. On GNOME the tray icon
+needs the AppIndicator extension (on by default in Ubuntu, `gnome-shell-extension-appindicator`
+on Debian); without it the window is the app.
 
-## Build from source
+**Android.** Open the APK on the phone and allow installing from that browser or file manager, or
+`adb install -r <file>.apk` from a computer. On phones with Google Play, Google is phasing in
+[developer verification](https://developer.android.com/developer-verification) for apps from
+outside Play (from 2026–2027 depending on the country); `adb install` keeps working regardless.
 
-Requirements: macOS 26 or later, Xcode Command Line Tools (Swift), Go, git, curl.
+## Use
 
-```bash
-make install
-```
+- **Add a tunnel**: **From Clipboard** with a `vpn://` key copied, or **From File…** for a `.conf`,
+  a file with a key, or an AmneziaVPN JSON export or backup. On Android you can also scan
+  AmneziaVPN's QR codes, or open a `vpn://` link or a shared file: the app shows what it got and
+  adds it when you confirm. Amnezia Premium/Free keys can't be imported (their config comes from
+  Amnezia's API at connect time).
+- **Connect** with the power button. One tunnel is up at a time; switch tunnels while
+  disconnected. On macOS and Linux quitting the app disconnects.
+- **Bypass VPN**: subnets that go through your normal network instead, like
+  `10.*, 192.168.0.0/16, fd00::/8`. On macOS and Linux local networks stay reachable anyway; on
+  Android add them here to reach a printer or a NAS.
+- **Kill switch**: while connected with a config that sends all traffic into the tunnel, nothing
+  else gets out, apart from local networks and Bypass VPN subnets. If the tunnel breaks, traffic
+  stays blocked until it comes back or you disconnect. Other VPNs (Tailscale and the like) can't
+  reach their servers meanwhile. On Android turn on Always-on VPN and "Block connections without
+  VPN" for AWG Bar in the system VPN settings to block traffic even while disconnected.
+- **Debug Log** in the settings menu writes a root-only log on macOS and Linux; it's off and
+  deleted by default.
+- Android also has a quick settings tile and an optional status notification with Disconnect.
+  The UI is in English and Russian.
 
-This builds `amneziawg-go`, `awg`, `awg-quick` and a self-contained `bash` from pinned sources,
-assembles `build.noindex/AWG Bar.app` and copies it to `/Applications`. Open it, click the shield in the
-menu bar and press **Install Helper**: macOS asks for your password once.
+## Update
 
-The app icon is an Icon Composer file, `Resources/AppIcon.icon`, whose layers come from
-`Resources/make-icon.py`. Its compiled form is committed, so the build doesn't need Xcode; after
-changing the icon, run `make icon` with Xcode installed to regenerate it.
+- **macOS**: settings menu → **Check for Updates…**, then **Update to x.y.z**. The update is
+  checked against the release's signature before it replaces the app; the VPN stays connected.
+  When the helper changes too, the app asks for your password once to reinstall it.
+- **Linux**: install the new package over the old one; the VPN reconnects by itself.
+- **Android**: install the new APK over the old one.
 
-Remove the helper and the app (tunnel configs are kept unless you run the uninstall script with `--purge`):
+## Remove
 
-```bash
-make uninstall
-```
+- **macOS**: `sudo bash "/Applications/AWG Bar.app/Contents/Resources/uninstall-helper.sh"`
+  (add `--purge` to delete the tunnels too), then move the app to the Trash.
+- **Linux**: `sudo apt remove awgbar` keeps the tunnels, `sudo apt purge awgbar` deletes them.
+- **Android**: uninstall the app.
 
-## How it works
+## More
 
-```
-AWG Bar.app (SwiftUI MenuBarExtra, runs as you)
-    │  JSON over /var/run/awgbar.sock, peer uid checked
-    ▼
-local.awgbar.helper (LaunchDaemon, root)
-    │  bash awg-quick up|down /Library/Application Support/AWGBar/run/<tunnel>.conf
-    ▼
-amneziawg-go (utun) + routes + DNS
-```
-
-- Tunnel configs are stored in `/Library/Application Support/AWGBar/tunnels` (root, 0600).
-- Only one tunnel is up at a time. Quitting the app disconnects the VPN.
-- **Split tunnelling** («Bypass VPN»): listed subnets (`10.*`, `192.168.0.0/16`, `fd00::/8`, …) are
-  routed through your normal gateway. They reuse awg-quick's endpoint routes, so they follow
-  network changes and are removed on disconnect. Requires a full-tunnel config (`0.0.0.0/0`).
-- **IPv6 leak protection**: if a config sends `::/0` into the tunnel but gives it no IPv6 address,
-  IPv6 is blackholed while connected instead of silently bypassing the VPN.
-- English and Russian UI, switchable in the settings menu (English by default).
-
-## Security model
-
-- The helper accepts requests only from root and from the user who installed it.
-- awg-quick runs `PreUp`/`PostUp`/`PreDown`/`PostDown` through `eval` as root. AWG Bar never passes
-  a config to it as written: every config is parsed against an allowlist of keys known to awg and
-  awg-quick, values are validated, and a canonical copy is rendered before each connect. Hooks,
-  `Table` and `SaveConfig` are dropped.
-- Everything that runs as root is copied into root-owned locations at install time; nothing is
-  executed from the user-writable app bundle.
-- **No logs by default.** The helper writes nothing unless **Debug Log** is enabled in the settings
-  menu; it then logs to `/var/log/awgbar-helper.log` (root only, 0600), which is deleted when the
-  option is turned off. Private keys are never logged.
-
-Debugging aid, shows exactly what awg-quick gets:
-
-```bash
-sudo /Library/PrivilegedHelperTools/local.awgbar.helper --print-config <tunnel>
-```
-
-## Known limitations
-
-- AWG Bar and the AmneziaVPN app share `/var/run/amneziawg`; don't run both tunnels at once.
-- If the Mac loses power while connected, DNS servers set by awg-quick stay in the network
-  settings until the next connect/disconnect (same as upstream wg-quick).
-- Amnezia Premium/Free keys can't be imported: their config is issued by Amnezia's API at connect time.
-
-## Translations
-
-UI strings go through `L("English text")`; Russian lives in `Resources/ru.lproj/AWGBar.strings`.
-
-## License
-
-MIT, see `LICENSE`. Bundled third-party components keep their own licenses, see `THIRD_PARTY_NOTICES.md`.
+- [How it works](docs/how-it-works.md): the helpers, the kill switch, DNS, the security model and
+  known limitations.
+- [Building and releasing](docs/building.md): building each client from source, tests, CI and
+  how a release is made and signed.
+- License: MIT (`LICENSE`); bundled components keep theirs (`THIRD_PARTY_NOTICES.md`).

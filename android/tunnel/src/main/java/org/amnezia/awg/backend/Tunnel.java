@@ -37,6 +37,17 @@ public interface Tunnel {
     void onStateChange(State newState);
 
     /**
+     * Whether the tunnel stands for a one-peer config that sends everything into it, even after
+     * its default route was cut up to send some subnets around it (AWG Bar's "Bypass VPN"):
+     * address families it then doesn't route must stay blocked instead of bypassing the VPN.
+     *
+     * @return true to keep the backend's kill-switch semantics without a default route.
+     */
+    default boolean isFullTunnel() {
+        return false;
+    }
+
+    /**
      * Enum class to represent all possible states of a {@link Tunnel}.
      */
     enum State {

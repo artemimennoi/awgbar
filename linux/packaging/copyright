@@ -11,6 +11,8 @@ Comment: Statically links these Go modules, each under its own license:
  amneziawg-go (https://github.com/amnezia-vpn/amneziawg-go): MIT
  netlink, netns (https://github.com/vishvananda): Apache-2.0
  godbus/dbus (https://github.com/godbus/dbus): BSD-2-Clause
+ google/nftables (https://github.com/google/nftables): Apache-2.0
+ mdlayher/netlink, mdlayher/socket (https://github.com/mdlayher): MIT
  golang.org/x/sys, x/net, x/crypto: BSD-3-Clause
  Their license texts are in /usr/share/doc/awgbar/licenses.
 Copyright: 2026 Artem Imennoi and the authors of the modules above

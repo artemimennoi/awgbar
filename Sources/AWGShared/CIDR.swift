@@ -64,6 +64,12 @@ public struct CIDR: Hashable, CustomStringConvertible, Sendable {
         return "\(String(cString: buf))/\(prefix)"
     }
 
+    /// Whether `other` lies inside this network.
+    public func contains(_ other: CIDR) -> Bool {
+        guard isV6 == other.isV6, prefix <= other.prefix else { return false }
+        return CIDR(bytes: other.bytes, prefix: prefix) == self
+    }
+
     private mutating func setBit(_ i: Int, _ on: Bool) {
         let mask: UInt8 = 0x80 >> UInt8(i % 8)
         if on { bytes[i / 8] |= mask } else { bytes[i / 8] &= ~mask }

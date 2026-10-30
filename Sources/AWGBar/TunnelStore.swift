@@ -255,7 +255,9 @@ final class TunnelStore: ObservableObject {
         guard panel.runModal() == .OK else { return }
         Task {
             for url in panel.urls {
-                guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+                // A real key or config is a few KB.
+                let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                guard size <= 1 << 20, let text = try? String(contentsOf: url, encoding: .utf8) else {
                     error = L("Cannot read %@", url.lastPathComponent)
                     continue
                 }

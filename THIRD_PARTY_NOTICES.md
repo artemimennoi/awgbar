@@ -25,6 +25,8 @@ license texts in `/usr/share/doc/awgbar/licenses`. Versions are pinned in `linux
 | amneziawg-go | MIT | https://github.com/amnezia-vpn/amneziawg-go |
 | netlink, netns | Apache-2.0 | https://github.com/vishvananda/netlink |
 | godbus/dbus | BSD-2-Clause | https://github.com/godbus/dbus |
+| google/nftables | Apache-2.0 | https://github.com/google/nftables |
+| mdlayher/netlink, mdlayher/socket | MIT | https://github.com/mdlayher/netlink |
 | golang.org/x/sys, x/net, x/crypto | BSD-3-Clause | https://go.googlesource.com |
 
 The Linux app links the distribution's Qt (LGPL-3.0) dynamically.

@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QtEndian>
 #include <QRegularExpression>
 
 namespace {
@@ -92,7 +93,8 @@ bool decodeVpnKey(const QString &key, QJsonValue *out, QString *error)
         return false;
     }
     QByteArray json = *decoded;
-    if (json.size() > 6 && quint8(json.at(4)) == 0x78) {
+    // qUncompress allocates the size the 4-byte header claims; a real key unpacks to a few KB.
+    if (json.size() > 6 && quint8(json.at(4)) == 0x78 && qFromBigEndian<quint32>(json.constData()) <= 1 << 20) {
         const QByteArray inflated = qUncompress(json);
         if (!inflated.isEmpty())
             json = inflated;

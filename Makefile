@@ -15,10 +15,17 @@ BASH_DIR   := $(DEPS)/bash-$(BASH_VER)
 AWG_GO_REV    ?= b5928efb6ca19f0153958460c3d141f04abc5c2e
 AWG_TOOLS_REV ?= ee0f0a9aa34ff0a0da4b3433b9512781cfe02843
 
-VERSION    := $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)
+# One version for the macOS, Linux and Android clients, released together under one tag.
+VERSION    := $(shell cat VERSION)
+# x.y.z → x*10000 + y*100 + z, like Android's versionCode.
+BUILD_NUMBER := $(shell echo $(VERSION) | awk -F. '{ print $$1 * 10000 + $$2 * 100 + $$3 }')
 DIST       := $(BUILD)/dist
+RELEASE    := $(BUILD)/release
+SIGNING_KEY ?= $(HOME)/.config/awgbar/release-ed25519.key
+JAVA_HOME  ?= /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+ANDROID_HOME ?= /opt/homebrew/share/android-commandlinetools
 
-.PHONY: all app icon deps install uninstall dist clean distclean
+.PHONY: all app icon deps install uninstall dist release clean distclean
 
 all: app
 
@@ -66,6 +73,7 @@ app: deps
 	rm -rf "$(APP)"
 	mkdir -p "$(APP)/Contents/MacOS" "$(RES)/bin" "$(RES)/helper"
 	cp Resources/Info.plist "$(APP)/Contents/"
+	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" -c "Set :CFBundleVersion $(BUILD_NUMBER)" "$(APP)/Contents/Info.plist"
 	cp .build/release/AWGBar "$(APP)/Contents/MacOS/"
 	cp .build/release/awgbar-helper "$(RES)/helper/local.awgbar.helper"
 	cp Resources/install-helper.sh Resources/uninstall-helper.sh "$(RES)/"
@@ -102,8 +110,25 @@ dist: app
 	cp $(DEPS)/bash-$(BASH_VER).tar.gz Resources/awg-quick-darwin.patch THIRD_PARTY_NOTICES.md $(DIST)/src/
 	tar -czf $(DIST)/awgbar-$(VERSION)-third-party-sources.tar.gz -C $(DIST) src
 	rm -rf $(DIST)/src
-	cd $(DIST) && shasum -a 256 *.dmg *.tar.gz > SHA256SUMS
 	@ls -la $(DIST)
+
+# Everything for the GitHub release v$(VERSION): the macOS DMG and sources, the Linux packages
+# (qt5/qt6, amd64/arm64) and the Android APKs, with SHA256SUMS over all of them signed by the
+# release key (scripts/sign.swift); the macOS updater installs nothing without that signature.
+release: dist
+	@test -f "$(SIGNING_KEY)" || { echo "no signing key at $(SIGNING_KEY)"; exit 1; }
+	rm -rf $(RELEASE) && mkdir -p $(RELEASE)
+	cp $(DIST)/awgbar-$(VERSION)-macos-arm64.dmg $(DIST)/awgbar-$(VERSION)-third-party-sources.tar.gz $(RELEASE)/
+	$(MAKE) -C linux deb ARCH=amd64
+	$(MAKE) -C linux deb ARCH=arm64
+	cp linux/build/dist/awgbar_$(VERSION)_*.deb $(RELEASE)/
+	cd android && JAVA_HOME=$(JAVA_HOME) ANDROID_HOME=$(ANDROID_HOME) ./gradlew -q assembleRelease
+	for abi in arm64-v8a armeabi-v7a x86_64 universal; do \
+		cp android/app/build/outputs/apk/release/app-$$abi-release.apk $(RELEASE)/awgbar-android-$(VERSION)-$$abi.apk; \
+	done
+	cd $(RELEASE) && shasum -a 256 *.dmg *.tar.gz *.deb *.apk > SHA256SUMS
+	swift scripts/sign.swift sign "$(SIGNING_KEY)" $(RELEASE)/SHA256SUMS > $(RELEASE)/SHA256SUMS.sig
+	@ls -la $(RELEASE)
 
 uninstall:
 	sudo bash Resources/uninstall-helper.sh

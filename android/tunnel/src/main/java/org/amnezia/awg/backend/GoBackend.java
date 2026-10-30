@@ -401,7 +401,7 @@ public final class GoBackend implements Backend {
             }
 
             // "Kill-switch" semantics
-            if (!(sawDefaultRoute && config.getPeers().size() == 1)) {
+            if (!((sawDefaultRoute || tunnel.isFullTunnel()) && config.getPeers().size() == 1)) {
                 builder.allowFamily(OsConstants.AF_INET);
                 builder.allowFamily(OsConstants.AF_INET6);
             }
