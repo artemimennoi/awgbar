@@ -76,7 +76,7 @@ private fun MainScreen(
     val context = LocalContext.current
     val activity = context as MainActivity
     val state by Vpn.state.collectAsState()
-    var names by remember { mutableStateOf(Vpn.store.names()) }
+    var tunnels by remember { mutableStateOf(Vpn.store.titles()) }
     var selected by remember { mutableStateOf(Vpn.store.selected) }
     var renaming by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<String?>(null) }
@@ -89,7 +89,7 @@ private fun MainScreen(
     val scope = rememberCoroutineScope()
 
     fun say(text: String) { scope.launch { snackbar.currentSnackbarData?.dismiss(); snackbar.showSnackbar(text) } }
-    fun reload() { names = Vpn.store.names(); selected = Vpn.store.selected }
+    fun reload() { tunnels = Vpn.store.titles(); selected = Vpn.store.selected }
 
     fun importWith(block: () -> ImportResult) {
         try {
@@ -100,8 +100,8 @@ private fun MainScreen(
             say(
                 listOfNotNull(
                     result.added.takeIf { it.isNotEmpty() }?.let { r.getQuantityString(R.plurals.imported, it.size, it.size) },
-                    result.updated.takeIf { it.isNotEmpty() }?.let { r.getString(R.string.import_updated, it.joinToString(", ")) },
-                    result.unchanged.takeIf { it.isNotEmpty() }?.let { r.getString(R.string.import_exists, it.joinToString(", ")) },
+                    result.updated.takeIf { it.isNotEmpty() }?.let { r.getString(R.string.import_updated, it.joinToString(", ", transform = Vpn.store::title)) },
+                    result.unchanged.takeIf { it.isNotEmpty() }?.let { r.getString(R.string.import_exists, it.joinToString(", ", transform = Vpn.store::title)) },
                 ).joinToString("\n"),
             )
         } catch (e: ImportError) {
@@ -158,7 +158,7 @@ private fun MainScreen(
                 val shown = state.active ?: selected
                 HeroCard(
                     state = state,
-                    tunnel = shown,
+                    tunnel = shown?.let { tunnels[it] ?: it },
                     host = shown?.let { Vpn.endpointHost(it) },
                     canConnect = selected != null,
                     onToggle = ::toggle,
@@ -169,7 +169,7 @@ private fun MainScreen(
                 // Switching tunnels needs the VPN off first.
                 val locked = state.active != null || state.busy
                 TunnelGroup(
-                    names = names,
+                    tunnels = tunnels,
                     selected = state.active ?: selected,
                     active = state.active,
                     locked = locked,
@@ -223,13 +223,12 @@ private fun MainScreen(
         )
     }
     renaming?.let { old ->
-        RenameDialog(old, renamingActive = state.active == old, onDismiss = { renaming = null }) { new ->
-            if (new == old || Vpn.store.rename(old, new)) { reload(); renaming = null }
-            else say(context.getString(R.string.name_taken))
+        RenameDialog(Vpn.store.title(old), onDismiss = { renaming = null }) { new ->
+            Vpn.store.rename(old, new); reload(); renaming = null
         }
     }
     deleting?.let { name ->
-        DeleteDialog(name, onDismiss = { deleting = null }) {
+        DeleteDialog(Vpn.store.title(name), onDismiss = { deleting = null }) {
             if (state.active == name) Vpn.disconnect()
             Vpn.store.delete(name); reload(); deleting = null
         }

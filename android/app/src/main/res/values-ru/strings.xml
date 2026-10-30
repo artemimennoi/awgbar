@@ -16,7 +16,6 @@
     <string name="rename">Переименовать</string>
     <string name="delete">Удалить</string>
     <string name="delete_title">Удалить %1$s?</string>
-    <string name="name_taken">Имя занято или недопустимо: только латиница, цифры и _=+.-, до 15 символов</string>
     <string name="ok">OK</string>
     <string name="cancel">Отмена</string>
     <string name="bypass">Обход VPN</string>
@@ -55,8 +54,6 @@
     <string name="notif_channel">Статус VPN</string>
     <string name="wallpaper">Цвета обоев</string>
     <string name="wallpaper_desc">Системная палитра Material You вместо цветов AWG Bar</string>
-    <string name="name_rule">Только латиница, цифры и _=+.-, до 15 символов</string>
-    <string name="rename_active">Отключитесь, чтобы переименовать активный туннель</string>
     <string name="import_exists">Уже есть: %1$s</string>
     <string name="import_updated">Обновлён: %1$s</string>
 </resources>

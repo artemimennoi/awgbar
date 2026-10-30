@@ -48,6 +48,8 @@ class CoreTest {
         assertEquals(1, tunnels.size)
         assertEquals("Moj-server-2", KeyImport.tunnelName(tunnels[0].name, emptySet()))
         assertEquals("Moj-server-2-2", KeyImport.tunnelName(tunnels[0].name, setOf("Moj-server-2")))
+        assertEquals("Резерв | #202 · NUE", KeyImport.cleanTitle("  Резерв | #202 · NUE\n"))
+        assertEquals(null, KeyImport.cleanTitle(" \t "))
     }
 
     @Test fun plainConf() {
