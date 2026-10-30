@@ -217,23 +217,31 @@ let localNetworks = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0
 
 /// The passes are stateless: pf's default "flags S/SA keep state" would match only new TCP
 /// connections and cut every one already open, localhost included, the moment the VPN connects.
-func killSwitchRules(utun: String, endpoints: [String], dns: [String], excluded: [CIDR]) -> String {
+/// What gets blocked is logged to pflog0 when that interface exists (see Resources/diagnose.sh).
+func killSwitchRules(utun: String, port: Int?, endpoints: [String], dns: [String], excluded: [CIDR]) -> String {
     func family(_ address: String) -> String { address.contains(":") ? "inet6" : "inet" }
     var lines = [
         "# AWG Bar kill switch, loaded while the VPN is up.",
         "pass out quick on lo0 all no state",
         "pass out quick on \(utun) all no state",
     ]
+    // The tunnel's own packets by their source port as well as by the server's address:
+    // WireGuard follows a server that answers from another address, and the address alone
+    // would then lock the tunnel out until a reconnect.
+    if let port { lines.append("pass out quick proto udp from any port \(port) to any no state") }
     lines += endpoints.map { "pass out quick \(family($0)) from any to \($0) no state" }
-    // The tunnel's name servers only through the tunnel.
-    lines += dns.map { "block return out quick \(family($0)) from any to \($0)" }
+    // The tunnel's name servers are set on the network services, and macOS sends some queries
+    // bound to Wi-Fi or Ethernet instead of through the tunnel. Blocked, DNS dies until a
+    // reconnect, so they may leave that way (AmneziaVPN's pf rules allow the same); routes keep
+    // all other queries in the tunnel.
+    lines += dns.map { "pass out quick \(family($0)) proto { udp tcp } from any to \($0) port 53 no state" }
     let allowed = localNetworks + excluded
     for (v6, name) in [(false, "inet"), (true, "inet6")] {
         let nets = allowed.filter { $0.isV6 == v6 }.map(\.description)
         if !nets.isEmpty { lines.append("pass out quick \(name) from any to { \(nets.joined(separator: ", ")) } no state") }
     }
     lines.append("pass out quick inet proto udp from any port 68 to any port 67 no state")
-    lines.append("block return out quick all")
+    lines.append("block return out log quick all")
     return lines.joined(separator: "\n") + "\n"
 }
 
@@ -246,7 +254,8 @@ func armKillSwitch(_ name: String, _ config: TunnelConfig) {
         let host = row[1][..<colon].trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
         return CIDR.parseAddress(host) != nil ? host : nil
     }
-    let rules = killSwitchRules(utun: utun, endpoints: endpoints, dns: config.tunnelDNS, excluded: loadExcluded())
+    let port = wgShow(utun, "listen-port").first?.first.flatMap { Int($0) }
+    let rules = killSwitchRules(utun: utun, port: port, endpoints: endpoints, dns: config.tunnelDNS, excluded: loadExcluded())
     let rulesPath = "\(HelperPaths.runtime)/killswitch.rules"
     do {
         try writeSecret(rulesPath, rules)
@@ -266,7 +275,7 @@ func armKillSwitch(_ name: String, _ config: TunnelConfig) {
             .map { String(enable[$0].dropFirst("Token : ".count)) } ?? ""
         fm.createFile(atPath: killSwitchMarker(name), contents: Data(token.utf8), attributes: [.posixPermissions: 0o600])
     }
-    log("kill switch on for \(name) via \(utun), server \(endpoints)")
+    log("kill switch on for \(name) via \(utun), server \(endpoints), port \(port.map(String.init) ?? "?")\n\(rules)")
 }
 
 func disarmKillSwitch(_ name: String) {

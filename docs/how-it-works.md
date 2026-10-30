@@ -54,7 +54,11 @@ LaunchDaemon) runs `amneziawg-go` and `awg-quick`, all built from pinned sources
 - The kill switch is a pf anchor, `com.apple/AWGBar`, which the stock `/etc/pf.conf` already
   evaluates, so the system ruleset is never rewritten. pf is enabled with a reference token that
   is given back on disconnect. Its rules are stateless, so connections already open (localhost
-  included) aren't cut when the VPN connects. If `amneziawg-go` dies, the rules stay and the menu
+  included) aren't cut when the VPN connects. The tunnel's packets pass by their source port too,
+  so a server answering from another address doesn't lock the tunnel out. DNS queries to the
+  tunnel's servers may also leave through Wi-Fi or Ethernet: their addresses are set on the
+  network services and macOS sends some queries bound to those, which blocked would kill DNS until
+  a reconnect (AmneziaVPN allows the same). What the rules block is logged to `pflog0`. If `amneziawg-go` dies, the rules stay and the menu
   says "Connection lost · traffic blocked" until you disconnect.
 - Updates are checked against an Ed25519 signature of the release's `SHA256SUMS`, whose public
   key is in the app; a release changed without the private key is refused.

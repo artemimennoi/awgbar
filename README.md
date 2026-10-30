@@ -57,6 +57,9 @@ outside Play (from 2026–2027 depending on the country); `adb install` keeps wo
   VPN" for AWG Bar in the system VPN settings to block traffic even while disconnected.
 - **Debug Log** in the settings menu writes a root-only log on macOS and Linux; it's off and
   deleted by default.
+- **If the internet stops while connected on macOS**, run
+  `sudo bash "/Applications/AWG Bar.app/Contents/Resources/diagnose.sh"` before reconnecting: it
+  writes a report to the Desktop (without private keys) that shows what got blocked.
 - Android also has a quick settings tile and an optional status notification with Disconnect.
   The UI is in English and Russian.
 
