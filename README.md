@@ -10,16 +10,18 @@ to build it yourself, see [docs/building.md](docs/building.md).
 
 ## Download
 
-All three clients are released together under one version: each release holds every file below.
+All three clients are released together under one version. The release's description opens
+with a table of direct links; the files are:
 
-| System | File | Needs |
-|---|---|---|
-| macOS | `awgbar-<version>-macos-arm64.dmg` | Apple Silicon, macOS 26+ |
-| Ubuntu 22.04, 24.04, Debian 12 | `awgbar_<version>_qt5_<amd64\|arm64>.deb` | |
-| Ubuntu 25.04+, Debian 13 | `awgbar_<version>_qt6_<amd64\|arm64>.deb` | |
-| Android | `awgbar-android-<version>-arm64-v8a.apk` (`universal` if unsure) | Android 10+ |
+| System | File |
+|---|---|
+| macOS 26+, Apple Silicon | `awgbar-<version>-macos-arm64.dmg` |
+| Android 10+, 64-bit ARM | `awgbar-<version>-android.apk` |
+| Ubuntu 22.04, 24.04, Debian 12 and distros built on them | `awgbar-<version>-linux-qt5-<amd64\|arm64>.deb` |
+| Ubuntu 25.04+, Debian 13 | `awgbar-<version>-linux-qt6-<amd64\|arm64>.deb` |
 
-The two Linux packages differ only in the Qt they use, so the app matches your desktop's style.
+On Linux, `amd64` is for Intel and AMD PCs, `arm64` for ARM. The two packages differ only in the
+Qt they use, so the app matches your desktop's style: Plasma 5 has Breeze only for Qt 5.
 
 ## Install
 
@@ -28,7 +30,7 @@ launch is blocked: allow it in System Settings → Privacy & Security → **Open
 `xattr -dr com.apple.quarantine "/Applications/AWG Bar.app"`. Click the shield in the menu bar
 and press **Install Helper** (your password, once): the helper is what brings the tunnel up.
 
-**Linux.** `sudo apt install ./awgbar_<version>_qt5_amd64.deb` (your file name). That's the only
+**Linux.** `sudo apt install ./awgbar-<version>-linux-qt5-amd64.deb` (your file name). That's the only
 password; AWG Bar appears in the applications menu and starts at login. On GNOME the tray icon
 needs the AppIndicator extension (on by default in Ubuntu, `gnome-shell-extension-appindicator`
 on Debian); without it the window is the app.
