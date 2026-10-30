@@ -201,6 +201,55 @@ QByteArray Glyph::symbolicSvg(State state)
            body + "\n</svg>\n";
 }
 
+void Glyph::logo(QPainter &p, State state, const QRectF &rect, const QColor &ink)
+{
+    const qreal line = 48;
+    const QRectF box(256 - line / 2, 226 - line / 2, 512 + line, 574 + line);
+    const qreal scale = qMin(rect.width() / box.width(), rect.height() / box.height());
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing);
+    p.translate(rect.center().x() - box.width() * scale / 2, rect.center().y() - box.height() * scale / 2);
+    p.scale(scale, scale);
+    p.translate(-box.topLeft());
+
+    const QPainterPath shield = shieldPath();
+    QColor secondary = ink;
+    secondary.setAlphaF(ink.alphaF() * 0.55);
+    QPen outline(secondary, line);
+    outline.setJoinStyle(Qt::RoundJoin);
+    QColor gearInk = ink;
+    switch (state) {
+    case State::On:
+        p.fillPath(shield, connectedColor);
+        outline.setColor(connectedColor);
+        p.strokePath(shield, outline);
+        gearInk = Qt::white;
+        break;
+    case State::Busy: {
+        p.save();
+        p.setClipRect(QRectF(0, 0, 512, 1024));
+        QColor half = ink;
+        half.setAlphaF(ink.alphaF() * 0.25);
+        p.fillPath(shield, half);
+        p.restore();
+        p.strokePath(shield, outline);
+        break;
+    }
+    case State::Off:
+        p.strokePath(shield, outline);
+        break;
+    }
+    p.fillPath(gearPath(QPointF(512, 500), 150, 118, 78), gearInk);
+    if (rect.height() >= 30) {
+        QPainterPath v;
+        v.moveTo(470, 467);
+        v.lineTo(512, 541);
+        v.lineTo(554, 467);
+        p.strokePath(v, QPen(gearInk, 30, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    }
+    p.restore();
+}
+
 QIcon Glyph::tray(State state, const QColor &fallbackColor)
 {
     const QString name = themeName(state);

@@ -1,6 +1,7 @@
 #include "window.h"
 #include "glyph.h"
 #include "l10n.h"
+#include "powerbutton.h"
 #include "store.h"
 
 #include <QApplication>
@@ -8,6 +9,7 @@
 #include <QCloseEvent>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeyEvent>
@@ -21,15 +23,14 @@
 #include <QRadioButton>
 #include <QResizeEvent>
 #include <QStackedWidget>
+#include <QStyle>
 #include <QToolButton>
-#include <QUrl>
 #include <QVBoxLayout>
 
 namespace {
 
-// Breeze's positive and neutral colors; they read well on light and dark color schemes alike.
-const QColor green(0x27, 0xae, 0x60);
-const QColor amber(0xf6, 0x74, 0x00);
+// Breeze's negative color, for errors; positive and neutral are Glyph's state colors.
+const QColor red(0xda, 0x44, 0x53);
 
 QString bytes(qint64 n)
 {
@@ -55,30 +56,17 @@ QString host(const QString &endpoint)
     return h;
 }
 
-// The status glyph in a tinted circle: green when connected, amber while busy, gray when off.
-QPixmap badge(Glyph::State state, const QPalette &palette, qreal dpr)
+QPixmap dot(const QColor &color, qreal dpr)
 {
-    const int size = 44;
-    QColor color = palette.color(QPalette::WindowText);
-    if (state == Glyph::State::On)
-        color = green;
-    else if (state == Glyph::State::Busy)
-        color = amber;
-    else
-        color.setAlphaF(0.55);
+    const int size = 8;
     QPixmap pixmap(QSize(size, size) * dpr);
     pixmap.setDevicePixelRatio(dpr);
     pixmap.fill(Qt::transparent);
     QPainter p(&pixmap);
     p.setRenderHint(QPainter::Antialiasing);
-    QColor tint = color;
-    tint.setAlphaF(0.18);
     p.setPen(Qt::NoPen);
-    p.setBrush(tint);
+    p.setBrush(color);
     p.drawEllipse(QRectF(0, 0, size, size));
-    const QPixmap glyph = Glyph::status(state, color, 22, dpr);
-    const QSizeF g = QSizeF(glyph.size()) / dpr;
-    p.drawPixmap(QPointF((size - g.width()) / 2, (size - g.height()) / 2), glyph);
     return pixmap;
 }
 
@@ -92,28 +80,44 @@ QFont scaled(QFont f, qreal factor)
     return f;
 }
 
-QLabel *sectionLabel()
+// The first icon the theme has: Breeze's name first, then GNOME's.
+QIcon themeIcon(std::initializer_list<const char *> names)
 {
-    auto *label = new QLabel;
-    label->setFont(scaled(label->font(), 0.9));
-    return label;
+    for (const char *name : names) {
+        const QIcon icon = QIcon::fromTheme(QLatin1String(name));
+        if (!icon.isNull())
+            return icon;
+    }
+    return QIcon();
 }
 
-
+QToolButton *iconButton(const QIcon &icon, const QString &fallback)
+{
+    auto *button = new QToolButton;
+    button->setIcon(icon);
+    if (icon.isNull())
+        button->setText(fallback);
+    button->setAutoRaise(true);
+    return button;
+}
 
 } // namespace
 
-// A one-line label that elides with "…" instead of widening the window.
+// A one-line label that elides with "…" instead of widening the window. It asks for its whole
+// text and gives way when the room runs out.
 class ElidedLabel : public QLabel {
 public:
     void setFullText(const QString &text)
     {
         m_text = text;
-        setToolTip(text);
         updateText();
+        updateGeometry();
     }
     QSize minimumSizeHint() const override { return QSize(0, QLabel::minimumSizeHint().height()); }
-    QSize sizeHint() const override { return QSize(0, QLabel::sizeHint().height()); }
+    QSize sizeHint() const override
+    {
+        return QSize(fontMetrics().horizontalAdvance(m_text) + 2, QLabel::sizeHint().height());
+    }
 
 protected:
     void resizeEvent(QResizeEvent *event) override
@@ -123,7 +127,12 @@ protected:
     }
 
 private:
-    void updateText() { setText(fontMetrics().elidedText(m_text, Qt::ElideRight, width())); }
+    void updateText()
+    {
+        const QString shown = fontMetrics().elidedText(m_text, Qt::ElideRight, width());
+        setText(shown);
+        setToolTip(shown == m_text ? QString() : m_text);
+    }
     QString m_text;
 };
 
@@ -131,66 +140,41 @@ Window::Window(Store *store, QMenu *settingsMenu) : m_store(store)
 {
     setWindowTitle(QStringLiteral("AWG Bar"));
     setWindowIcon(Glyph::app());
-    setMinimumWidth(420);
-    resize(520, 0);
+    setMinimumWidth(340);
+    resize(380, 0);
 
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(16, 16, 16, 16);
+    root->setContentsMargins(16, 14, 16, 12);
     root->setSpacing(10);
 
-    // Status
+    // Header: the app's name, then a status dot and what the VPN is doing.
     auto *header = new QHBoxLayout;
-    header->setSpacing(12);
-    m_badge = new QLabel;
-    m_badge->setFixedSize(44, 44);
-    header->addWidget(m_badge);
-    auto *titles = new QVBoxLayout;
-    titles->setSpacing(0);
-    m_title = new ElidedLabel;
-    QFont titleFont = scaled(m_title->font(), 1.1);
-    titleFont.setWeight(QFont::DemiBold);
-    m_title->setFont(titleFont);
-    m_subtitle = new ElidedLabel;
-    m_subtitle->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    titles->addStretch();
-    titles->addWidget(m_title);
-    titles->addWidget(m_subtitle);
-    titles->addStretch();
-    header->addLayout(titles, 1);
-    m_power = new QPushButton;
-    connect(m_power, &QPushButton::clicked, store, &Store::toggle);
-    header->addWidget(m_power);
-    m_menuButton = new QToolButton;
-    m_menuButton->setIcon(QIcon::fromTheme(QStringLiteral("application-menu"),
-                                           QIcon::fromTheme(QStringLiteral("open-menu-symbolic"))));
-    if (m_menuButton->icon().isNull())
-        m_menuButton->setText(QStringLiteral("☰"));
-    m_menuButton->setAutoRaise(true);
-    m_menuButton->setStyleSheet(QStringLiteral("QToolButton::menu-indicator { image: none; width: 0; }"));
-    m_menuButton->setPopupMode(QToolButton::InstantPopup);
-    m_menuButton->setMenu(settingsMenu);
-    header->addWidget(m_menuButton, 0, Qt::AlignTop);
+    header->setSpacing(8);
+    auto *name = new QLabel(QStringLiteral("AWG Bar"));
+    QFont nameFont = scaled(name->font(), 1.25);
+    nameFont.setWeight(QFont::DemiBold);
+    name->setFont(nameFont);
+    header->addWidget(name);
+    header->addStretch(1);
+    m_dot = new QLabel;
+    m_dot->setFixedSize(8, 8);
+    header->addWidget(m_dot);
+    m_status = new ElidedLabel;
+    header->addWidget(m_status);
     root->addLayout(header);
-
-    m_error = new QLabel;
-    m_error->setWordWrap(true);
-    m_error->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    m_error->setStyleSheet(QStringLiteral(
-        "QLabel { background: rgba(218, 68, 83, 0.15); border: 1px solid rgba(218, 68, 83, 0.6);"
-        " border-radius: 4px; padding: 6px 8px; }"));
-    m_error->hide();
-    root->addWidget(m_error);
 
     m_pages = new QStackedWidget;
     root->addWidget(m_pages);
 
-    // Page 0: tunnels and split tunnel
+    // Page 0: the power button, the tunnels and Bypass.
     auto *main = new QWidget;
     auto *mainLayout = new QVBoxLayout(main);
     mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(6);
-    m_tunnelsLabel = sectionLabel();
-    mainLayout->addWidget(m_tunnelsLabel);
+    mainLayout->setSpacing(10);
+    m_power = new PowerButton;
+    connect(m_power, &PowerButton::clicked, store, &Store::toggle);
+    mainLayout->addWidget(m_power, 0, Qt::AlignHCenter);
+
     m_list = new QListWidget;
     // The radio buttons show the chosen tunnel; a selection highlight on top would be noise.
     m_list->setSelectionMode(QAbstractItemView::NoSelection);
@@ -207,48 +191,127 @@ Window::Window(Store *store, QMenu *settingsMenu) : m_store(store)
     m_empty = new QWidget;
     auto *emptyLayout = new QVBoxLayout(m_empty);
     emptyLayout->setContentsMargins(0, 8, 0, 8);
+    emptyLayout->setSpacing(4);
     m_emptyTitle = new QLabel;
     QFont bold = m_emptyTitle->font();
     bold.setWeight(QFont::DemiBold);
     m_emptyTitle->setFont(bold);
+    m_emptyTitle->setAlignment(Qt::AlignHCenter);
     m_emptyHint = new QLabel;
     m_emptyHint->setWordWrap(true);
+    m_emptyHint->setAlignment(Qt::AlignHCenter);
     emptyLayout->addWidget(m_emptyTitle);
     emptyLayout->addWidget(m_emptyHint);
-    mainLayout->addWidget(m_empty);
-
     auto *importRow = new QHBoxLayout;
+    importRow->setContentsMargins(0, 6, 0, 0);
     m_fromClipboard = new QPushButton(QIcon::fromTheme(QStringLiteral("edit-paste")), QString());
     m_fromFile = new QPushButton(QIcon::fromTheme(QStringLiteral("document-open")), QString());
     connect(m_fromClipboard, &QPushButton::clicked, this, &Window::importFromClipboard);
     connect(m_fromFile, &QPushButton::clicked, this, &Window::importFromFile);
+    importRow->addStretch();
     importRow->addWidget(m_fromClipboard);
     importRow->addWidget(m_fromFile);
     importRow->addStretch();
-    mainLayout->addLayout(importRow);
+    emptyLayout->addLayout(importRow);
+    mainLayout->addWidget(m_empty);
 
-    mainLayout->addSpacing(8);
-    m_bypassLabel = sectionLabel();
-    mainLayout->addWidget(m_bypassLabel);
-    auto *bypassRow = new QHBoxLayout;
-    m_bypass = new QLineEdit;
-    m_bypass->setPlaceholderText(QStringLiteral("10.*, 192.168.0.0/16"));
-    m_bypass->setClearButtonEnabled(true);
-    m_apply = new QPushButton;
-    auto apply = [this] { m_store->setExcluded(m_bypass->text()); };
-    connect(m_bypass, &QLineEdit::returnPressed, this, apply);
-    connect(m_apply, &QPushButton::clicked, this, apply);
-    bypassRow->addWidget(m_bypass, 1);
-    bypassRow->addWidget(m_apply);
-    mainLayout->addLayout(bypassRow);
+    // Bypass: the subnets on one line, edited in place as on macOS. Enter applies, Esc cancels.
+    // Framed and filled like the tunnel list above it.
+    m_bypassRow = new QFrame;
+    m_bypassRow->setFrameShape(QFrame::StyledPanel);
+    m_bypassRow->setFrameShadow(QFrame::Sunken);
+    m_bypassRow->setBackgroundRole(QPalette::Base);
+    m_bypassRow->setAutoFillBackground(true);
+    auto *bypassLayout = new QHBoxLayout(m_bypassRow);
+    bypassLayout->setContentsMargins(10, 2, 2, 2);
+    bypassLayout->setSpacing(8);
+    m_bypassLabel = new QLabel;
+    bypassLayout->addWidget(m_bypassLabel);
+    m_bypassStack = new QStackedWidget;
+    m_bypassValue = new ElidedLabel;
+    m_bypassValue->setCursor(Qt::IBeamCursor);
+    m_bypassValue->installEventFilter(this);
+    m_bypassEdit = new QLineEdit;
+    m_bypassEdit->setFrame(false);
+    m_bypassEdit->setPlaceholderText(QStringLiteral("10.*, 192.168.0.0/16"));
+    m_bypassEdit->installEventFilter(this);
+    connect(m_bypassEdit, &QLineEdit::returnPressed, this, [this] { endBypassEdit(true); });
+    m_bypassStack->addWidget(m_bypassValue);
+    m_bypassStack->addWidget(m_bypassEdit);
+    m_bypassStack->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_bypassStack->setFixedHeight(m_bypassEdit->sizeHint().height());
+    bypassLayout->addWidget(m_bypassStack, 1);
+    m_bypassButton = iconButton(themeIcon({"document-edit", "edit-rename", "document-edit-symbolic"}), QStringLiteral("✎"));
+    connect(m_bypassButton, &QToolButton::clicked, this, [this] {
+        if (editingBypass())
+            endBypassEdit(true);
+        else
+            beginBypassEdit();
+    });
+    bypassLayout->addWidget(m_bypassButton);
+    mainLayout->addWidget(m_bypassRow);
     m_pages->addWidget(main);
 
-    // Page 1: the helper isn't usable
+    // Page 1: the helper isn't usable.
     m_problem = new QLabel;
     m_problem->setWordWrap(true);
     m_problem->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_problem->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     m_pages->addWidget(m_problem);
+
+    // One line for what matters most right now: an error, an outdated service, the traffic, or
+    // where Connect goes. Always the same height, so the window doesn't jump.
+    auto *info = new QWidget;
+    auto *infoLayout = new QHBoxLayout(info);
+    infoLayout->setContentsMargins(2, 0, 0, 0);
+    infoLayout->setSpacing(6);
+    m_infoIcon = new QLabel;
+    infoLayout->addWidget(m_infoIcon);
+    m_infoText = new ElidedLabel;
+    m_infoText->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    infoLayout->addWidget(m_infoText, 1);
+    m_traffic = new QLabel;
+    infoLayout->addWidget(m_traffic);
+    m_copyLog = new QToolButton;
+    m_copyLog->setAutoRaise(true);
+    connect(m_copyLog, &QToolButton::clicked, this, &Window::copyErrorLog);
+    infoLayout->addWidget(m_copyLog);
+    m_dismiss = iconButton(themeIcon({"window-close", "dialog-close", "window-close-symbolic"}), QStringLiteral("✕"));
+    connect(m_dismiss, &QToolButton::clicked, this, [this] { m_store->setError(QString()); });
+    infoLayout->addWidget(m_dismiss);
+    info->setFixedHeight(m_dismiss->sizeHint().height());
+    root->addWidget(info);
+
+    // Add a tunnel on the left, settings on the right.
+    auto *footer = new QHBoxLayout;
+    m_add = new QToolButton;
+    m_add->setIcon(themeIcon({"list-add", "list-add-symbolic"}));
+    if (m_add->icon().isNull())
+        m_add->setText(QStringLiteral("+"));
+    m_addMenu = new QMenu(this);
+    QAction *paste = m_addMenu->addAction(QIcon::fromTheme(QStringLiteral("edit-paste")), QString(), this,
+                                          &Window::importFromClipboard);
+    QAction *open = m_addMenu->addAction(QIcon::fromTheme(QStringLiteral("document-open")), QString(), this,
+                                         &Window::importFromFile);
+    connect(m_addMenu, &QMenu::aboutToShow, m_addMenu, [paste, open] {
+        paste->setText(L("From Clipboard"));
+        open->setText(L("From File…"));
+    });
+    m_add->setMenu(m_addMenu);
+    m_menuButton = new QToolButton;
+    m_menuButton->setIcon(themeIcon({"configure", "application-menu", "open-menu-symbolic"}));
+    if (m_menuButton->icon().isNull())
+        m_menuButton->setText(QStringLiteral("☰"));
+    m_menuButton->setMenu(settingsMenu);
+    for (QToolButton *b : {m_add, m_menuButton}) {
+        b->setPopupMode(QToolButton::InstantPopup);
+        b->setIconSize(QSize(20, 20));
+        b->setStyleSheet(QStringLiteral("QToolButton::menu-indicator { image: none; width: 0; }"));
+    }
+    footer->addWidget(m_add);
+    footer->addStretch();
+    footer->addWidget(m_menuButton);
+    root->addLayout(footer);
 
     connect(store, &Store::changed, this, &Window::rebuild);
     rebuild();
@@ -260,72 +323,122 @@ void Window::showAndRaise()
     setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
     raise();
     activateWindow();
+    // Nothing is focused until Tab or a click picks something, as in the macOS menu: otherwise
+    // the first button in the window opens with a focus frame.
+    if (!focusWidget() || focusWidget() == m_bypassButton)
+        setFocus(Qt::ActiveWindowFocusReason);
 }
 
 void Window::closeEvent(QCloseEvent *event)
 {
     // The window is only a view; the app keeps running in the tray and the VPN stays up.
     event->ignore();
+    endBypassEdit(false);
     hide();
 }
 
 void Window::changeEvent(QEvent *event)
 {
-    // Follow color scheme changes for the badge.
+    // Follow color scheme changes for the dot and the muted texts.
     if (event->type() == QEvent::PaletteChange)
         rebuild();
     QWidget::changeEvent(event);
 }
 
+bool Window::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_bypassValue && event->type() == QEvent::MouseButtonRelease && m_bypassRow->isEnabled()) {
+        beginBypassEdit();
+        return true;
+    }
+    if (watched == m_bypassEdit && event->type() == QEvent::KeyPress &&
+        static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+        endBypassEdit(false);
+        return true;
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
 // Secondary text: the window's text color, faded. Not QPalette::PlaceholderText, which Breeze
-// for Qt 5 leaves invisible in some containers.
-void Window::mute(QWidget *widget)
+// for Qt 5 leaves invisible in some containers. Text too: labels on a Base background (Bypass)
+// draw with it.
+void Window::mute(QWidget *widget, qreal alpha)
 {
     QPalette p = widget->palette();
-    QColor c = palette().color(QPalette::WindowText);
-    c.setAlphaF(0.6);
-    p.setColor(QPalette::WindowText, c);
+    for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text}) {
+        QColor c = palette().color(role);
+        c.setAlphaF(alpha);
+        p.setColor(role, c);
+    }
     widget->setPalette(p);
+}
+
+bool Window::editingBypass() const
+{
+    return m_bypassStack->currentWidget() == m_bypassEdit;
+}
+
+void Window::beginBypassEdit()
+{
+    m_bypassEdit->setText(m_store->excluded().join(QStringLiteral(", ")));
+    m_bypassStack->setCurrentWidget(m_bypassEdit);
+    m_bypassEdit->setFocus();
+    m_bypassEdit->end(false);
+    m_bypassButton->setIcon(themeIcon({"dialog-ok-apply", "dialog-ok", "object-select-symbolic"}));
+    m_bypassButton->setToolTip(L("Apply"));
+}
+
+// The helper checks the list and reconnects an active tunnel; a bad subnet comes back as an error.
+void Window::endBypassEdit(bool apply)
+{
+    if (!editingBypass())
+        return;
+    if (apply)
+        m_store->setExcluded(m_bypassEdit->text());
+    m_bypassStack->setCurrentWidget(m_bypassValue);
+    m_bypassButton->setIcon(themeIcon({"document-edit", "edit-rename", "document-edit-symbolic"}));
+    rebuild();
+}
+
+void Window::copyErrorLog()
+{
+    QString text = m_store->error();
+    if (!m_store->errorLog().isEmpty())
+        text += QStringLiteral("\n\n") + m_store->errorLog();
+    QApplication::clipboard()->setText(text);
 }
 
 void Window::rebuild()
 {
-    for (QWidget *w : {static_cast<QWidget *>(m_subtitle), static_cast<QWidget *>(m_tunnelsLabel),
-                       static_cast<QWidget *>(m_bypassLabel), static_cast<QWidget *>(m_emptyHint)})
-        mute(w);
     const Tunnel *active = m_store->active();
     const bool busy = m_store->busy();
     const Glyph::State state = busy ? Glyph::State::Busy : active ? Glyph::State::On : Glyph::State::Off;
-    m_badge->setPixmap(badge(state, palette(), devicePixelRatioF()));
-
-    if (busy)
-        m_title->setFullText(active ? L("Please wait…") : L("Connecting…"));
-    else if (active)
-        m_title->setFullText(L("Connected · %1").arg(active->displayName()));
-    else
-        m_title->setFullText(L("Disconnected"));
-
-    QString subtitle;
-    if (active && m_store->stats()) {
-        const Stats s = *m_store->stats();
-        subtitle = host(s.endpoint.isEmpty() ? active->endpoint : s.endpoint) + QStringLiteral(" · ↓ ") +
-                   bytes(s.rxBytes) + QStringLiteral(" ↑ ") + bytes(s.txBytes);
-    } else if (const Tunnel *t = active ? active : m_store->selectedTunnel()) {
-        subtitle = host(t->endpoint);
-    }
-    m_subtitle->setFullText(subtitle);
-    m_subtitle->setVisible(!subtitle.isEmpty());
-
     const bool usable = m_store->helper() == Store::Helper::Ready || m_store->helper() == Store::Helper::Outdated;
-    m_power->setText(active ? L("Disconnect") : L("Connect"));
+    const QColor text = palette().color(QPalette::WindowText);
+
+    // Header
+    QColor dotColor = text;
+    dotColor.setAlphaF(0.35);
+    if (busy)
+        dotColor = Glyph::busyColor;
+    else if (active)
+        dotColor = Glyph::connectedColor;
+    m_dot->setPixmap(dot(dotColor, devicePixelRatioF()));
+    if (busy)
+        m_status->setFullText(L("Please wait…"));
+    else if (active)
+        m_status->setFullText(L("Connected · %1").arg(active->displayName()));
+    else
+        m_status->setFullText(L("Disconnected"));
+    mute(m_status);
+
+    // Power button
+    m_power->setState(state);
     m_power->setEnabled(usable && !busy && (active || m_store->selectedTunnel()));
-    m_power->setDefault(!active);
-    m_menuButton->setToolTip(L("Menu"));
+    m_power->setToolTip(active ? L("Disconnect") : L("Connect"));
+    m_power->setAccessibleName(m_power->toolTip());
 
-    m_error->setText(m_store->error());
-    m_error->setVisible(!m_store->error().isEmpty());
-
-    // Helper problems replace the main page.
+    // Helper problems replace the power button, the tunnels and Bypass.
     switch (m_store->helper()) {
     case Store::Helper::Unreachable:
         m_problem->setText(QStringLiteral("<b>%1</b><br><br>%2<br><code>sudo systemctl enable --now awgbar-helper</code>"
@@ -346,32 +459,13 @@ void Window::rebuild()
         m_pages->setCurrentIndex(0);
         break;
     }
-    if (m_store->helper() == Store::Helper::Outdated && m_store->error().isEmpty()) {
-        m_error->setText(L("The AWG Bar service is outdated; reinstall the package"));
-        m_error->show();
-    }
 
-    m_tunnelsLabel->setText(L("Tunnels"));
-    m_emptyTitle->setText(L("No tunnels"));
-    m_emptyHint->setText(L("Copy a vpn://… key or choose a .conf file"));
-    m_fromClipboard->setText(L("From Clipboard"));
-    m_fromFile->setText(L("From File…"));
-    m_bypassLabel->setText(L("Bypass"));
-    m_bypass->setToolTip(L("Subnets separated by commas; they go around the VPN"));
-    m_apply->setText(L("Apply"));
-    m_fromClipboard->setEnabled(!busy);
-    m_fromFile->setEnabled(!busy);
-    m_apply->setEnabled(!busy);
-
-    // Only touch the field while the user isn't typing in it.
-    const QString excluded = m_store->excluded().join(QStringLiteral(", "));
-    if (!m_bypass->hasFocus())
-        m_bypass->setText(excluded);
-
-    // Rows are rebuilt only when something in them changed, so polling doesn't reset hover or focus.
-    QString signature = m_store->selected() + QLatin1Char('|') + QString::number(int(L10n::language()));
+    // Tunnels. Rows are rebuilt only when something in them changed, so polling doesn't reset
+    // hover or focus.
+    QString signature = m_store->selected() + QLatin1Char('|') + QString::number(int(L10n::language())) +
+                        QLatin1Char('|') + QString::number(m_store->selectionLocked());
     for (const Tunnel &t : m_store->tunnels())
-        signature += t.name + QLatin1Char('\t') + t.displayName() + QLatin1Char('\t') + QString::number(t.active) + QLatin1Char('\n');
+        signature += t.name + QLatin1Char('\t') + t.displayName() + QLatin1Char('\n');
     if (m_list->property("signature").toString() != signature) {
         m_list->setProperty("signature", signature);
         m_list->clear();
@@ -386,18 +480,18 @@ void Window::rebuild()
             // The row handles clicks; the radio button only shows which tunnel is chosen.
             radio->setAttribute(Qt::WA_TransparentForMouseEvents);
             radio->setFocusPolicy(Qt::NoFocus);
-            // Switching tunnels needs the VPN off first.
-            if (active && t.name != m_store->selected()) {
+            // Switching tunnels needs the VPN off first; the row's ⋮ still works.
+            if (m_store->selectionLocked() && t.name != m_store->selected()) {
                 radio->setEnabled(false);
                 row->setToolTip(L("Disconnect to switch tunnels"));
             }
             layout->addWidget(radio, 1);
             auto *more = new QToolButton;
-            more->setIcon(QIcon::fromTheme(QStringLiteral("overflow-menu"),
-                                           QIcon::fromTheme(QStringLiteral("view-more-symbolic"))));
+            more->setIcon(themeIcon({"overflow-menu", "view-more-symbolic", "view-more"}));
             if (more->icon().isNull())
                 more->setText(QStringLiteral("⋮"));
             more->setAutoRaise(true);
+            more->setToolTip(L("More"));
             const QString name = t.name;
             connect(more, &QToolButton::clicked, this,
                     [this, more, name] { showTunnelMenu(name, more->mapToGlobal(QPoint(0, more->height()))); });
@@ -412,6 +506,65 @@ void Window::rebuild()
     m_list->setVisible(!m_store->tunnels().isEmpty());
     m_empty->setVisible(m_store->tunnels().isEmpty());
     m_list->setEnabled(!busy);
+    m_emptyTitle->setText(L("No tunnels"));
+    m_emptyHint->setText(L("Copy a vpn://… key or choose a .conf file"));
+    mute(m_emptyHint);
+    m_fromClipboard->setText(L("From Clipboard"));
+    m_fromFile->setText(L("From File…"));
+    m_fromClipboard->setEnabled(!busy);
+    m_fromFile->setEnabled(!busy);
+
+    // Bypass. Only touch the field while the user isn't typing in it.
+    m_bypassLabel->setText(L("Bypass"));
+    m_bypassRow->setToolTip(L("Subnets separated by commas; they go around the VPN"));
+    m_bypassRow->setEnabled(!busy);
+    if (!editingBypass()) {
+        m_bypassValue->setFullText(m_store->excluded().isEmpty() ? L("Off")
+                                                                 : m_store->excluded().join(QStringLiteral(", ")));
+        m_bypassButton->setToolTip(L("Edit"));
+    }
+    mute(m_bypassValue);
+
+    // Info line
+    const QString error = m_store->error();
+    const bool outdated = m_store->helper() == Store::Helper::Outdated;
+    const int iconSize = style()->pixelMetric(QStyle::PM_SmallIconSize);
+    QString info;
+    QColor infoColor = text;
+    m_traffic->clear();
+    if (!error.isEmpty()) {
+        info = error;
+        infoColor = red;
+        m_infoIcon->setPixmap(themeIcon({"dialog-error", "dialog-error-symbolic"}).pixmap(iconSize));
+    } else if (outdated) {
+        info = L("The AWG Bar service is outdated; reinstall the package");
+        infoColor = Glyph::busyColor;
+        m_infoIcon->setPixmap(themeIcon({"dialog-warning", "dialog-warning-symbolic"}).pixmap(iconSize));
+    } else if (active && m_store->stats()) {
+        const Stats s = *m_store->stats();
+        info = host(s.endpoint.isEmpty() ? active->endpoint : s.endpoint);
+        infoColor.setAlphaF(0.6);
+        m_traffic->setText(QStringLiteral("↓ ") + bytes(s.rxBytes) + QStringLiteral("    ↑ ") + bytes(s.txBytes));
+    } else if (const Tunnel *t = active ? active : m_store->selectedTunnel()) {
+        // Where the power button will connect to, dimmed, in the same spot as the connected address.
+        info = host(t->endpoint);
+        infoColor.setAlphaF(0.4);
+    }
+    m_infoText->setFullText(info);
+    QPalette infoPalette = m_infoText->palette();
+    infoPalette.setColor(QPalette::WindowText, infoColor);
+    m_infoText->setPalette(infoPalette);
+    m_infoIcon->setVisible(!error.isEmpty() || outdated);
+    m_traffic->setVisible(!m_traffic->text().isEmpty());
+    m_copyLog->setText(L("Copy Log"));
+    m_copyLog->setVisible(!error.isEmpty() && !m_store->errorLog().isEmpty());
+    m_dismiss->setVisible(!error.isEmpty());
+    m_dismiss->setToolTip(L("Close"));
+
+    // Footer
+    m_add->setEnabled(usable && !busy);
+    m_add->setToolTip(L("Add Tunnel"));
+    m_menuButton->setToolTip(L("Menu"));
 }
 
 void Window::showTunnelMenu(const QString &name, const QPoint &globalPos)
