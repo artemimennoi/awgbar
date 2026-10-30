@@ -17,6 +17,9 @@ class ImportError(val res: Int) : Exception()
  * or a settings backup) or a plain AmneziaWG .conf text. Mirrors KeyImport.swift.
  */
 object KeyImport {
+    /** Upper bound for what an import reads or unpacks. */
+    const val MAX_SIZE = 1 shl 20
+
     fun parse(text: String, suggestedName: String): List<ImportedTunnel> {
         val trimmed = text.trim()
         if (trimmed.startsWith("vpn://")) return configs(decodeVpnKey(trimmed), suggestedName)
@@ -101,6 +104,8 @@ object KeyImport {
             val n = inflater.inflate(buf)
             if (n == 0 && (inflater.needsInput() || inflater.needsDictionary())) break
             out.write(buf, 0, n)
+            // A real key unpacks to a few KB, a crafted one to gigabytes.
+            if (out.size() > MAX_SIZE) return@runCatching null
         }
         inflater.end()
         out.toByteArray().takeIf { it.isNotEmpty() }

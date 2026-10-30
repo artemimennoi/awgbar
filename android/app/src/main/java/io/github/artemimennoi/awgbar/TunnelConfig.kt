@@ -29,19 +29,44 @@ class TunnelConfig private constructor(
         }
     }
 
-    /** The backend config with bypass subnets cut out of every peer's AllowedIPs. */
+    private fun allowedIps(peer: List<Pair<String, String>>) =
+        peer.filter { it.first == "AllowedIPs" }.flatMap { it.second.split(",") }.mapNotNull { Cidr.parse(it) }
+
+    private val addresses get() =
+        interfaceEntries.filter { it.first == "Address" }.flatMap { it.second.split(",") }.mapNotNull { Cidr.parse(it) }
+
+    /** One peer that gets everything of a family: the VPN keeps other families blocked. */
+    val isFullTunnel get() = peers.size == 1 && allowedIps(peers[0]).any { it.prefix == 0 }
+
+    private val configDns get() =
+        interfaceEntries.filter { it.first == "DNS" }.flatMap { it.second.split(",") }.map { it.trim() }.filter { Cidr.parseAddress(it) != null }
+
+    /** No DNS in a full-tunnel config: use AmneziaVPN's default rather than the network's. */
+    private val usesFallbackDns get() =
+        configDns.isEmpty() && peers.any { p -> allowedIps(p).any { it.prefix == 0 && !it.isV6 } } && addresses.any { !it.isV6 }
+
+    /**
+     * The backend config: the fallback DNS if the config names none, and bypass subnets cut out of
+     * every peer's AllowedIPs, except the tunnel's name servers (AmneziaDNS 172.29.172.254 inside
+     * a bypassed 172.16.0.0/12 still goes through the tunnel).
+     */
     fun toBackendConfig(bypass: List<Cidr>): Config {
-        if (bypass.isEmpty()) return parseBackend(render())
-        val rewritten = TunnelConfig(interfaceEntries, peers.map { peer ->
-            peer.map { (k, v) ->
-                if (k != "AllowedIPs") k to v
-                else k to Cidr.subtract(v.split(",").mapNotNull { Cidr.parse(it) }, bypass).joinToString(", ")
-            }.filterNot { it.first == "AllowedIPs" && it.second.isEmpty() }
-        }, dropped)
-        return parseBackend(rewritten.render())
+        val iface = if (usesFallbackDns) interfaceEntries + ("DNS" to FALLBACK_DNS.joinToString(", ")) else interfaceEntries
+        val servers = (if (usesFallbackDns) FALLBACK_DNS else configDns).mapNotNull { Cidr.parse(it) }
+        val rewritten = peers.map { peer ->
+            if (bypass.isEmpty()) return@map peer
+            val original = allowedIps(peer)
+            val kept = Cidr.subtract(original, bypass)
+            val dns = servers.filter { s -> original.any { it.contains(s) } && kept.none { it.contains(s) } }
+            peer.filterNot { it.first == "AllowedIPs" } +
+                listOfNotNull((kept + dns).takeIf { it.isNotEmpty() }?.let { "AllowedIPs" to it.joinToString(", ") })
+        }
+        return parseBackend(TunnelConfig(iface, rewritten, dropped).render())
     }
 
     companion object {
+        val FALLBACK_DNS = listOf("1.1.1.1", "1.0.0.1")
+
         private val interfaceKeys = listOf(
             "Address", "DNS", "MTU", "PrivateKey", "ListenPort", "Jc", "Jmin", "Jmax", "S1", "S2", "S3", "S4",
             "H1", "H2", "H3", "H4", "I1", "I2", "I3", "I4", "I5", "HeaderProtectionKey",

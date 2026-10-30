@@ -56,4 +56,7 @@
     <string name="wallpaper_desc">Системная палитра Material You вместо цветов AWG Bar</string>
     <string name="import_exists">Уже есть: %1$s</string>
     <string name="import_updated">Обновлён: %1$s</string>
+    <string name="import_confirm_title">Добавить туннель из другого приложения?</string>
+    <string name="import_confirm">Добавить</string>
+    <string name="vpn_on">VPN включён</string>
 </resources>

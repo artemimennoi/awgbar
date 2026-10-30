@@ -6,6 +6,7 @@ import android.content.Intent
 import android.app.PendingIntent
 import android.graphics.drawable.Icon
 import android.net.VpnService
+import android.os.Build
 import android.service.quicksettings.Tile as QsTile
 import android.service.quicksettings.TileService
 
@@ -13,11 +14,19 @@ import android.service.quicksettings.TileService
 class Tile : TileService() {
     override fun onStartListening() = update()
 
-    override fun onClick() {
+    // From the lock screen only after unlocking: someone holding the phone must not turn the VPN off.
+    override fun onClick() = if (isLocked) unlockAndRun(::toggle) else toggle()
+
+    private fun toggle() {
         if (Vpn.state.value.active == null && VpnService.prepare(this) != null) {
             // The VPN permission dialog needs an activity.
             val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivityAndCollapse(PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE))
+            if (Build.VERSION.SDK_INT >= 34) {
+                startActivityAndCollapse(PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE))
+            } else {
+                @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")
+                startActivityAndCollapse(intent)
+            }
             return
         }
         Vpn.toggle()

@@ -379,6 +379,19 @@ fun RenameDialog(old: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit
 }
 
 @Composable
+fun ImportConfirmDialog(tunnels: List<Pair<String, String?>>, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.import_confirm_title)) },
+        text = {
+            Text(tunnels.joinToString("\n") { (name, endpoint) -> listOfNotNull(name, endpoint).joinToString(" · ") })
+        },
+        confirmButton = { Button(onConfirm) { Text(stringResource(R.string.import_confirm)) } },
+        dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+@Composable
 fun DeleteDialog(name: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,

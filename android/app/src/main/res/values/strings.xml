@@ -55,4 +55,7 @@
     <string name="wallpaper_desc">Use the system Material You palette instead of AWG Bar\'s</string>
     <string name="import_exists">Already added: %1$s</string>
     <string name="import_updated">Updated: %1$s</string>
+    <string name="import_confirm_title">Add a tunnel from another app?</string>
+    <string name="import_confirm">Add</string>
+    <string name="vpn_on">VPN is on</string>
 </resources>

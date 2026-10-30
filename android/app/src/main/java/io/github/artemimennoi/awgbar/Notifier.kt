@@ -33,6 +33,16 @@ object Notifier {
         )
         fun size(n: Long) = Formatter.formatShortFileSize(context, n)
         val traffic = "↓ ${size(state.rxRate)}/s  ↑ ${size(state.txRate)}/s · ${size(state.rx + state.tx)}"
+        // The lock screen shows that the VPN is on, not where it goes; Disconnect asks to unlock.
+        val public = NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_status)
+            .setColor(ShieldGreen.toArgb())
+            .setContentTitle(context.getString(R.string.vpn_on))
+            .setShowWhen(false)
+            .build()
+        val disconnectAction = NotificationCompat.Action.Builder(0, context.getString(R.string.disconnect), disconnect)
+            .setAuthenticationRequired(true)
+            .build()
         val n = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_status)
             .setColor(ShieldGreen.toArgb())
@@ -40,13 +50,14 @@ object Notifier {
             .setContentText(listOfNotNull(endpoint, traffic).joinToString(" · "))
             .setStyle(NotificationCompat.BigTextStyle().bigText(listOfNotNull(endpoint, traffic).joinToString("\n")))
             .setContentIntent(open)
-            .addAction(0, context.getString(R.string.disconnect), disconnect)
+            .addAction(disconnectAction)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setShowWhen(false)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(public)
             .build()
         runCatching { nm.notify(ID, n) } // SecurityException if POST_NOTIFICATIONS was revoked.
     }

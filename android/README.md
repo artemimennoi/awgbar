@@ -8,12 +8,22 @@ A small AmneziaWG client that works like the macOS AWG Bar. One screen holds:
 A QR code from AmneziaVPN can be scanned with the camera, including a series of several codes. The look follows Material 3 Expressive (Android 16): grouped rounded rows, bottom sheets, a graphite and green palette, and Material You colors as an option. You can turn on a status notification that stays up while connected and shows the tunnel, the traffic and a Disconnect button. There is also a quick settings tile, and the app works as the system always-on VPN. English and Russian.
 
 The app imports the same things as on macOS: `vpn://…` keys, AmneziaVPN JSON (key, connection
-export, backup) and plain `.conf` files. A `vpn://` link or a shared `.conf` opens straight in the app.
+export, backup) and plain `.conf` files. A `vpn://` link or a `.conf` shared from another app opens
+in the app, which shows the server and adds it only when you confirm.
 Keys that a tunnel cannot use (`PostUp`, `Table`, …) are dropped. The parameters of AWG 1.5/2.0
 (`S3`, `S4`, `H1`–`H4` ranges, `I1`–`I5`, …) are passed to the tunnel unchanged.
 
 "Bypass VPN" takes subnets like `10.*, 192.168.0.0/16, fd00::/8`. The app removes them from every
-peer's AllowedIPs, so that traffic goes past the tunnel. Apply reconnects the active tunnel.
+peer's AllowedIPs, so that traffic goes past the tunnel. Apply reconnects the active tunnel. The
+tunnel's DNS servers stay in the tunnel, and a full-tunnel config keeps blocking the address family
+it doesn't route (IPv6 for a v4-only config) with or without bypass subnets. A full-tunnel config
+without `DNS` uses 1.1.1.1 and 1.0.0.1, as AmneziaVPN does.
+
+Security notes: tunnels stay in app-private storage and are excluded from cloud backups and from
+device-to-device transfer. The quick settings tile and the notification's Disconnect ask to unlock
+the phone first, and the lock screen shows only that the VPN is on. For a kill switch outside the
+tunnel's own lifetime, turn on Always-on VPN and "Block connections without VPN" for AWG Bar in
+Android's VPN settings.
 
 ## Build
 
@@ -46,14 +56,16 @@ keyAlias=awgbar
 keyPassword=…
 ```
 
-Then `./gradlew assembleRelease`, and attach `app-arm64-v8a-release.apk` (and `universal`) to a GitHub Release.
+The version comes from the repository's `VERSION` file, shared with the macOS and Linux clients
+(`versionCode` is x·10000 + y·100 + z). `make release` at the top level builds the APKs together with
+the other clients' files for one GitHub Release `vX.Y.Z`.
 Always sign with the same key: Android only installs an update over a build signed with the same key.
 Back up the keystore together with its properties file. A release build is about 4 MB per ABI
 (R8 strips unused code); a debug build is much larger because nothing is stripped.
 
 ## Install (sideload, no Google Play)
 
-- Download `awgbar-android-<version>-arm64-v8a.apk` from the GitHub Release tagged `android-v<version>` on the phone, open it and allow "Install unknown apps" for
+- Download `awgbar-android-<version>-arm64-v8a.apk` from the GitHub Release `v<version>` on the phone, open it and allow "Install unknown apps" for
   the browser or file manager. Or use a cable: `adb install -r app-arm64-v8a-release.apk`.
 - The debug build has its own id (`…awgbar.debug`) and installs next to the release build.
 
