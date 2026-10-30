@@ -21,6 +21,7 @@ VERSION    := $(shell cat VERSION)
 BUILD_NUMBER := $(shell echo $(VERSION) | awk -F. '{ print $$1 * 10000 + $$2 * 100 + $$3 }')
 DIST       := $(BUILD)/dist
 RELEASE    := $(BUILD)/release
+RELEASE_NOTES := $(BUILD)/release-notes.md
 SIGNING_KEY ?= $(HOME)/.config/awgbar/release-ed25519.key
 JAVA_HOME  ?= /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
 ANDROID_HOME ?= /opt/homebrew/share/android-commandlinetools
@@ -113,21 +114,26 @@ dist: app
 	@ls -la $(DIST)
 
 # Everything for the GitHub release v$(VERSION): the macOS DMG and sources, the Linux packages
-# (qt5/qt6, amd64/arm64) and the Android APKs, with SHA256SUMS over all of them signed by the
+# (qt5/qt6, amd64/arm64) and the Android APK (arm64), with SHA256SUMS over all of them signed by the
 # release key (scripts/sign.swift); the macOS updater installs nothing without that signature.
+# Files are named awgbar-<version>-<platform>-..., so the release lists them by platform; the DMG
+# keeps its -macos-arm64.dmg ending, which installed apps look for. RELEASE_NOTES gets the
+# download table that opens the release's description (scripts/release-download.md).
 release: dist
 	@test -f "$(SIGNING_KEY)" || { echo "no signing key at $(SIGNING_KEY)"; exit 1; }
 	rm -rf $(RELEASE) && mkdir -p $(RELEASE)
 	cp $(DIST)/awgbar-$(VERSION)-macos-arm64.dmg $(DIST)/awgbar-$(VERSION)-third-party-sources.tar.gz $(RELEASE)/
 	$(MAKE) -C linux deb ARCH=amd64
 	$(MAKE) -C linux deb ARCH=arm64
-	cp linux/build/dist/awgbar_$(VERSION)_*.deb $(RELEASE)/
+	for qt in qt5 qt6; do for arch in amd64 arm64; do \
+		cp linux/build/dist/awgbar_$(VERSION)_$${qt}_$$arch.deb $(RELEASE)/awgbar-$(VERSION)-linux-$$qt-$$arch.deb || exit 1; \
+	done; done
 	cd android && JAVA_HOME=$(JAVA_HOME) ANDROID_HOME=$(ANDROID_HOME) ./gradlew -q assembleRelease
-	for abi in arm64-v8a armeabi-v7a x86_64 universal; do \
-		cp android/app/build/outputs/apk/release/app-$$abi-release.apk $(RELEASE)/awgbar-android-$(VERSION)-$$abi.apk; \
-	done
+	# One APK, 64-bit ARM only (android/app/build.gradle.kts).
+	cp android/app/build/outputs/apk/release/app-release.apk $(RELEASE)/awgbar-$(VERSION)-android.apk
 	cd $(RELEASE) && shasum -a 256 *.dmg *.tar.gz *.deb *.apk > SHA256SUMS
 	swift scripts/sign.swift sign "$(SIGNING_KEY)" $(RELEASE)/SHA256SUMS > $(RELEASE)/SHA256SUMS.sig
+	sed 's/@VERSION@/$(VERSION)/g' scripts/release-download.md > $(RELEASE_NOTES)
 	@ls -la $(RELEASE)
 
 uninstall:

@@ -9,7 +9,11 @@ android {
     namespace = "org.amnezia.awg.tunnel"
     compileSdk = 36
     ndkVersion = "27.2.12479018"
-    defaultConfig { minSdk = 29 }
+    defaultConfig {
+        minSdk = 29
+        // The app ships for 64-bit ARM only; building the Go library for other ABIs is wasted time.
+        ndk { abiFilters += "arm64-v8a" }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

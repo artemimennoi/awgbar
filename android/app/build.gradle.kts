@@ -25,6 +25,9 @@ android {
         // x.y.z becomes versionCode x*10000 + y*100 + z.
         versionName = rootProject.file("../VERSION").readText().trim()
         versionCode = versionName!!.split(".").map(String::toInt).let { (x, y, z) -> x * 10000 + y * 100 + z }
+        // 64-bit ARM only, the phones of the last years. 32-bit ARM and x86 (old phones, TV sticks,
+        // Chromebooks, emulators on Intel) aren't supported; one APK, nothing to choose from.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     signingConfigs {
@@ -43,16 +46,6 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
-        }
-    }
-
-    // One APK per ABI keeps downloads small; the universal one is for "just install it".
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = true
         }
     }
 
