@@ -3,16 +3,23 @@ import CryptoKit
 import Foundation
 
 /// Updates the app in place from GitHub releases, pre-releases included: download the DMG, check
-/// it against the release's SHA256SUMS, swap the bundle and relaunch. Only on request, never in
-/// the background. Authenticity rests on HTTPS to GitHub and the repository owner's account;
-/// the checksum only catches a broken download.
+/// the release's SHA256SUMS against its Ed25519 signature (SHA256SUMS.sig, made by
+/// scripts/sign.swift with the key whose public half is `signingKey`), check the DMG against
+/// SHA256SUMS, swap the bundle and relaunch. Only on request, never in the background. The
+/// signature is what makes an update authentic: the app is ad-hoc signed, and a release that
+/// someone with access to the GitHub account (or the asset storage) put there without the key
+/// is refused.
 @MainActor
 final class Updater: ObservableObject {
     struct Release: Equatable {
         let version: String
         let dmg: URL
         let checksums: URL
+        let signature: URL
     }
+
+    /// Public half of the release signing key (~/.config/awgbar/release-ed25519.key).
+    static let signingKey = "PdpoNEpj7pQjrlhYMDttdd1iUuIlcN3kVYQZDPoxXVo="
 
     @Published private(set) var available: Release?
     @Published private(set) var busy = false
@@ -63,8 +70,9 @@ final class Updater: ObservableObject {
                 .flatMap { $0["browser_download_url"] as? String }
                 .flatMap(URL.init(string:))
         }
-        guard let dmg = asset({ $0.hasSuffix("-macos-arm64.dmg") }), let sums = asset({ $0 == "SHA256SUMS" }) else { return nil }
-        return Release(version: String(tag.drop { $0 == "v" }), dmg: dmg, checksums: sums)
+        guard let dmg = asset({ $0.hasSuffix("-macos-arm64.dmg") }), let sums = asset({ $0 == "SHA256SUMS" }),
+              let signature = asset({ $0 == "SHA256SUMS.sig" }) else { return nil }
+        return Release(version: String(tag.drop { $0 == "v" }), dmg: dmg, checksums: sums, signature: signature)
     }
 
     /// "0.0.10" > "0.0.9"; anything after "-" is ignored.
@@ -108,7 +116,10 @@ final class Updater: ObservableObject {
         defer { try? fm.removeItem(at: work) }
 
         let dmg = try await download(release.dmg, to: work.appendingPathComponent(release.dmg.lastPathComponent))
-        let sums = try String(contentsOf: try await download(release.checksums, to: work.appendingPathComponent("SHA256SUMS")), encoding: .utf8)
+        let sumsData = try Data(contentsOf: try await download(release.checksums, to: work.appendingPathComponent("SHA256SUMS")))
+        let signature = try String(contentsOf: try await download(release.signature, to: work.appendingPathComponent("SHA256SUMS.sig")), encoding: .utf8)
+        guard Self.isSigned(sumsData, signature: signature) else { throw AppError(L("The update failed its signature check")) }
+        let sums = String(decoding: sumsData, as: UTF8.self)
         let expected = sums.split(separator: "\n")
             .first { $0.hasSuffix(" " + release.dmg.lastPathComponent) }?
             .split(separator: " ").first.map(String.init)
@@ -144,6 +155,12 @@ final class Updater: ObservableObject {
         guard renamed.lastPathComponent != target.lastPathComponent, !fm.fileExists(atPath: renamed.path),
               (try? fm.moveItem(at: target, to: renamed)) != nil else { return target }
         return renamed
+    }
+
+    static func isSigned(_ data: Data, signature: String) -> Bool {
+        guard let raw = Data(base64Encoded: signingKey), let key = try? Curve25519.Signing.PublicKey(rawRepresentation: raw),
+              let sig = Data(base64Encoded: signature.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
+        return key.isValidSignature(sig, for: data)
     }
 
     /// Opens the new copy once this process is gone; the tunnel stays up across the restart.

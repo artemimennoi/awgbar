@@ -10,7 +10,7 @@
 #   qt5  Ubuntu 22.04 and 24.04, Debian 12 (Plasma 5)   built on Ubuntu 22.04
 #   qt6  Debian 13, Ubuntu 25.04 and newer (Plasma 6)   built on Debian 13
 
-VERSION := $(shell grep -oE 'VERSION [0-9]+\.[0-9]+\.[0-9]+' app/CMakeLists.txt | head -1 | cut -d' ' -f2)
+VERSION := $(shell cat ../VERSION)
 ARCH    ?= amd64
 BUILD   := build
 DIST    := $(BUILD)/dist
@@ -20,7 +20,8 @@ QT6_IMAGE := debian:13
 
 # Modules linked into the helper; their license texts ship in the package.
 GO_LICENSES := github.com/amnezia-vpn/amneziawg-go/v3 github.com/godbus/dbus/v5 github.com/vishvananda/netlink \
-               github.com/vishvananda/netns golang.org/x/crypto golang.org/x/net golang.org/x/sys
+               github.com/vishvananda/netns github.com/google/nftables github.com/mdlayher/netlink \
+               github.com/mdlayher/socket golang.org/x/crypto golang.org/x/net golang.org/x/sys
 
 .PHONY: all helper licenses deb deb-qt5 deb-qt6 test clean
 
@@ -34,7 +35,7 @@ licenses:
 	rm -rf $(BUILD)/licenses && mkdir -p $(BUILD)/licenses
 	for m in $(GO_LICENSES); do \
 		dir=$$(go list -m -f '{{.Dir}}' $$m) && \
-		cp "$$dir/LICENSE" "$(BUILD)/licenses/$$(echo $$m | tr / _).txt"; \
+		cp "$$(ls "$$dir"/LICENSE* | head -1)" "$(BUILD)/licenses/$$(echo $$m | tr / _).txt" || exit 1; \
 	done
 
 deb: deb-qt5 deb-qt6
