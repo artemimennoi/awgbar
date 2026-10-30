@@ -19,7 +19,6 @@ static const QHash<QString, QString> &russian()
         {QStringLiteral("Name:"), QStringLiteral("Имя:")},
         {QStringLiteral("Bypass"), QStringLiteral("Обход")},
         {QStringLiteral("Off"), QStringLiteral("Выключен")},
-        {QStringLiteral("Edit"), QStringLiteral("Изменить")},
         {QStringLiteral("More"), QStringLiteral("Ещё")},
         {QStringLiteral("Close"), QStringLiteral("Закрыть")},
         {QStringLiteral("Add Tunnel"), QStringLiteral("Добавить туннель")},

@@ -5,7 +5,6 @@
 class ElidedLabel;
 class PowerButton;
 class Store;
-class QFrame;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -16,7 +15,7 @@ class QToolButton;
 
 // The main window, laid out like the macOS menu with the desktop's own widgets: header with the
 // status, the round power button, the tunnels, Bypass, one info line, and add and settings
-// buttons at the bottom.
+// buttons at the bottom. Bypass is an ordinary text field, as a KDE setting would be.
 class Window : public QWidget {
     Q_OBJECT
 public:
@@ -34,10 +33,10 @@ private:
     void importFromClipboard();
     void importFromFile();
     void showTunnelMenu(const QString &name, const QPoint &globalPos);
-    void beginBypassEdit();
-    void endBypassEdit(bool apply);
-    bool editingBypass() const;
+    void applyBypass();
+    void revertBypass();
     void copyErrorLog();
+    void fitHeight();
 
     Store *m_store;
     QLabel *m_dot;
@@ -51,12 +50,9 @@ private:
     QLabel *m_emptyHint;
     QPushButton *m_fromClipboard;
     QPushButton *m_fromFile;
-    QFrame *m_bypassRow;
     QLabel *m_bypassLabel;
-    QStackedWidget *m_bypassStack;
-    ElidedLabel *m_bypassValue;
-    QLineEdit *m_bypassEdit;
-    QToolButton *m_bypassButton;
+    QLineEdit *m_bypass;
+    QToolButton *m_bypassApply;
     QLabel *m_infoIcon;
     ElidedLabel *m_infoText;
     QLabel *m_traffic;
@@ -65,4 +61,6 @@ private:
     QToolButton *m_add;
     QMenu *m_addMenu;
     QToolButton *m_menuButton;
+    // The height the window was last fitted to; see the end of rebuild().
+    int m_fittedHeight = 0;
 };

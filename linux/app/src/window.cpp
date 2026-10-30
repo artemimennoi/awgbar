@@ -9,7 +9,6 @@
 #include <QCloseEvent>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QFrame>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeyEvent>
@@ -24,6 +23,7 @@
 #include <QResizeEvent>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -215,41 +215,24 @@ Window::Window(Store *store, QMenu *settingsMenu) : m_store(store)
     emptyLayout->addLayout(importRow);
     mainLayout->addWidget(m_empty);
 
-    // Bypass: the subnets on one line, edited in place as on macOS. Enter applies, Esc cancels.
-    // Framed and filled like the tunnel list above it.
-    m_bypassRow = new QFrame;
-    m_bypassRow->setFrameShape(QFrame::StyledPanel);
-    m_bypassRow->setFrameShadow(QFrame::Sunken);
-    m_bypassRow->setBackgroundRole(QPalette::Base);
-    m_bypassRow->setAutoFillBackground(true);
-    auto *bypassLayout = new QHBoxLayout(m_bypassRow);
-    bypassLayout->setContentsMargins(10, 2, 2, 2);
-    bypassLayout->setSpacing(8);
+    // Bypass: a label and the subnets in a text field. Enter or the checkmark applies (an active
+    // tunnel reconnects), Esc puts the saved list back; an empty list reads "Off".
+    auto *bypassRow = new QHBoxLayout;
+    bypassRow->setSpacing(8);
     m_bypassLabel = new QLabel;
-    bypassLayout->addWidget(m_bypassLabel);
-    m_bypassStack = new QStackedWidget;
-    m_bypassValue = new ElidedLabel;
-    m_bypassValue->setCursor(Qt::IBeamCursor);
-    m_bypassValue->installEventFilter(this);
-    m_bypassEdit = new QLineEdit;
-    m_bypassEdit->setFrame(false);
-    m_bypassEdit->setPlaceholderText(QStringLiteral("10.*, 192.168.0.0/16"));
-    m_bypassEdit->installEventFilter(this);
-    connect(m_bypassEdit, &QLineEdit::returnPressed, this, [this] { endBypassEdit(true); });
-    m_bypassStack->addWidget(m_bypassValue);
-    m_bypassStack->addWidget(m_bypassEdit);
-    m_bypassStack->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_bypassStack->setFixedHeight(m_bypassEdit->sizeHint().height());
-    bypassLayout->addWidget(m_bypassStack, 1);
-    m_bypassButton = iconButton(themeIcon({"document-edit", "edit-rename", "document-edit-symbolic"}), QStringLiteral("✎"));
-    connect(m_bypassButton, &QToolButton::clicked, this, [this] {
-        if (editingBypass())
-            endBypassEdit(true);
-        else
-            beginBypassEdit();
+    bypassRow->addWidget(m_bypassLabel);
+    m_bypass = new QLineEdit;
+    m_bypass->installEventFilter(this);
+    connect(m_bypass, &QLineEdit::returnPressed, this, &Window::applyBypass);
+    connect(m_bypass, &QLineEdit::textEdited, this, [this] {
+        m_bypassApply->setVisible(m_bypass->text() != m_store->excluded().join(QStringLiteral(", ")));
     });
-    bypassLayout->addWidget(m_bypassButton);
-    mainLayout->addWidget(m_bypassRow);
+    bypassRow->addWidget(m_bypass, 1);
+    m_bypassApply = iconButton(themeIcon({"dialog-ok-apply", "dialog-ok", "object-select-symbolic"}), QStringLiteral("✓"));
+    connect(m_bypassApply, &QToolButton::clicked, this, &Window::applyBypass);
+    m_bypassApply->hide();
+    bypassRow->addWidget(m_bypassApply);
+    mainLayout->addLayout(bypassRow);
     m_pages->addWidget(main);
 
     // Page 1: the helper isn't usable.
@@ -280,6 +263,8 @@ Window::Window(Store *store, QMenu *settingsMenu) : m_store(store)
     connect(m_dismiss, &QToolButton::clicked, this, [this] { m_store->setError(QString()); });
     infoLayout->addWidget(m_dismiss);
     info->setFixedHeight(m_dismiss->sizeHint().height());
+    // A taller window than needed gets empty space here rather than stretched rows.
+    root->addStretch(1);
     root->addWidget(info);
 
     // Add a tunnel on the left, settings on the right.
@@ -319,13 +304,14 @@ Window::Window(Store *store, QMenu *settingsMenu) : m_store(store)
 
 void Window::showAndRaise()
 {
+    const bool opening = !isVisible();
     show();
     setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
     raise();
     activateWindow();
     // Nothing is focused until Tab or a click picks something, as in the macOS menu: otherwise
-    // the first button in the window opens with a focus frame.
-    if (!focusWidget() || focusWidget() == m_bypassButton)
+    // the power button would open with a focus ring.
+    if (opening)
         setFocus(Qt::ActiveWindowFocusReason);
 }
 
@@ -333,7 +319,7 @@ void Window::closeEvent(QCloseEvent *event)
 {
     // The window is only a view; the app keeps running in the tray and the VPN stays up.
     event->ignore();
-    endBypassEdit(false);
+    revertBypass();
     hide();
 }
 
@@ -347,13 +333,9 @@ void Window::changeEvent(QEvent *event)
 
 bool Window::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched == m_bypassValue && event->type() == QEvent::MouseButtonRelease && m_bypassRow->isEnabled()) {
-        beginBypassEdit();
-        return true;
-    }
-    if (watched == m_bypassEdit && event->type() == QEvent::KeyPress &&
+    if (watched == m_bypass && event->type() == QEvent::KeyPress &&
         static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
-        endBypassEdit(false);
+        revertBypass();
         return true;
     }
     return QWidget::eventFilter(watched, event);
@@ -373,31 +355,19 @@ void Window::mute(QWidget *widget, qreal alpha)
     widget->setPalette(p);
 }
 
-bool Window::editingBypass() const
-{
-    return m_bypassStack->currentWidget() == m_bypassEdit;
-}
-
-void Window::beginBypassEdit()
-{
-    m_bypassEdit->setText(m_store->excluded().join(QStringLiteral(", ")));
-    m_bypassStack->setCurrentWidget(m_bypassEdit);
-    m_bypassEdit->setFocus();
-    m_bypassEdit->end(false);
-    m_bypassButton->setIcon(themeIcon({"dialog-ok-apply", "dialog-ok", "object-select-symbolic"}));
-    m_bypassButton->setToolTip(L("Apply"));
-}
-
 // The helper checks the list and reconnects an active tunnel; a bad subnet comes back as an error.
-void Window::endBypassEdit(bool apply)
+void Window::applyBypass()
 {
-    if (!editingBypass())
-        return;
-    if (apply)
-        m_store->setExcluded(m_bypassEdit->text());
-    m_bypassStack->setCurrentWidget(m_bypassValue);
-    m_bypassButton->setIcon(themeIcon({"document-edit", "edit-rename", "document-edit-symbolic"}));
-    rebuild();
+    m_store->setExcluded(m_bypass->text());
+    m_bypassApply->hide();
+    m_bypass->clearFocus();
+}
+
+void Window::revertBypass()
+{
+    m_bypass->setText(m_store->excluded().join(QStringLiteral(", ")));
+    m_bypassApply->hide();
+    m_bypass->clearFocus();
 }
 
 void Window::copyErrorLog()
@@ -456,6 +426,8 @@ void Window::rebuild()
     case Store::Helper::Checking:
     case Store::Helper::Ready:
     case Store::Helper::Outdated:
+        // Cleared, so its old text doesn't keep the window tall.
+        m_problem->clear();
         m_pages->setCurrentIndex(0);
         break;
     }
@@ -516,14 +488,14 @@ void Window::rebuild()
 
     // Bypass. Only touch the field while the user isn't typing in it.
     m_bypassLabel->setText(L("Bypass"));
-    m_bypassRow->setToolTip(L("Subnets separated by commas; they go around the VPN"));
-    m_bypassRow->setEnabled(!busy);
-    if (!editingBypass()) {
-        m_bypassValue->setFullText(m_store->excluded().isEmpty() ? L("Off")
-                                                                 : m_store->excluded().join(QStringLiteral(", ")));
-        m_bypassButton->setToolTip(L("Edit"));
+    m_bypass->setPlaceholderText(L("Off"));
+    m_bypass->setToolTip(L("Subnets separated by commas; they go around the VPN"));
+    m_bypassApply->setToolTip(L("Apply"));
+    m_bypass->setEnabled(!busy);
+    if (!m_bypass->hasFocus()) {
+        m_bypass->setText(m_store->excluded().join(QStringLiteral(", ")));
+        m_bypassApply->hide();
     }
-    mute(m_bypassValue);
 
     // Info line
     const QString error = m_store->error();
@@ -565,6 +537,23 @@ void Window::rebuild()
     m_add->setEnabled(usable && !busy);
     m_add->setToolTip(L("Add Tunnel"));
     m_menuButton->setToolTip(L("Menu"));
+
+    QTimer::singleShot(0, this, &Window::fitHeight);
+}
+
+// Fits the height to what the window shows when that changes: tunnels added or removed, the empty
+// state, a helper problem. The window opens before the tunnels arrive, and one sized for the empty
+// state would keep its blank space. In between, the user's size stays. Runs once the layouts have
+// caught up with what rebuild() showed and hid, then activates the window's own, or resize() would
+// stop at the old, taller minimum.
+void Window::fitHeight()
+{
+    layout()->activate();
+    const int fitted = sizeHint().height();
+    if (fitted != m_fittedHeight) {
+        m_fittedHeight = fitted;
+        resize(width(), fitted);
+    }
 }
 
 void Window::showTunnelMenu(const QString &name, const QPoint &globalPos)
