@@ -91,14 +91,13 @@ struct MenuView: View {
                 ScrollView {
                     VStack(spacing: tunnelRowSpacing) {
                         ForEach(store.tunnels) { tunnel in
-                            TunnelRow(tunnel: tunnel, selected: tunnel.name == store.selected, selection: selection)
-                                .opacity(store.selectionLocked && tunnel.name != store.selected ? 0.45 : 1)
-                                .help(store.selectionLocked && tunnel.name != store.selected ? L("Disconnect to switch tunnels") : "")
-                                .onTapGesture { withAnimation(.smooth) { store.select(tunnel.name) } }
-                                .contextMenu {
-                                    Button(L("Rename…")) { store.rename(tunnel) }
-                                    Button(L("Delete…"), role: .destructive) { store.delete(tunnel) }
-                                }
+                            let locked = store.selectionLocked && tunnel.name != store.selected
+                            TunnelRow(tunnel: tunnel, selected: tunnel.name == store.selected, dimmed: locked, selection: selection) {
+                                tunnelActions(tunnel)
+                            }
+                            .help(locked ? L("Disconnect to switch tunnels") : "")
+                            .onTapGesture { withAnimation(.smooth) { store.select(tunnel.name) } }
+                            .contextMenu { tunnelActions(tunnel) }
                         }
                     }
                 }
@@ -110,6 +109,11 @@ struct MenuView: View {
         .disabled(store.busy)
     }
 
+    @ViewBuilder private func tunnelActions(_ tunnel: TunnelInfo) -> some View {
+        Button(L("Rename…")) { store.rename(tunnel) }
+        Button(L("Delete…"), role: .destructive) { store.delete(tunnel) }
+    }
+
     // Everything below keeps a constant height: the menu bar window on recent macOS leaves its old
     // glass background on screen when its content grows or shrinks, so nothing appears or collapses.
 
@@ -117,7 +121,7 @@ struct MenuView: View {
     /// keyboard focus every time the window opens.
     private var splitTunnel: some View {
         HStack(spacing: 8) {
-            Text(L("Bypass VPN")).font(.subheadline)
+            Text(L("Bypass")).font(.subheadline)
             if store.editingExcluded {
                 TextField(text: $store.excludedDraft, prompt: Text(verbatim: "10.*, 192.168.0.0/16")) { EmptyView() }
                     .textFieldStyle(.plain)
@@ -133,7 +137,7 @@ struct MenuView: View {
             } else {
                 Button(action: store.beginExcludedEdit) {
                     HStack {
-                        Text(store.excluded.isEmpty ? L("none") : store.excluded.joined(separator: ", "))
+                        Text(store.excluded.isEmpty ? L("Off") : store.excluded.joined(separator: ", "))
                             .foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
                         Spacer(minLength: 0)
                         Image(systemName: "pencil").foregroundStyle(.secondary)
@@ -279,21 +283,39 @@ private let tunnelListHeight = CGFloat(visibleTunnelRows) * tunnelRowHeight + CG
 /// Corners follow the window's own rounding, so inner shapes stay concentric with it.
 private let rowShape = ConcentricRectangle(corners: .concentric(minimum: 8), isUniform: true)
 
-private struct TunnelRow: View {
+/// While connected the chosen row is the connected tunnel: the radio says which, no extra mark.
+/// Rename and Delete are in the context menu and behind a "…" that shows while the pointer is over
+/// the row, so they can be found without knowing to right-click.
+private struct TunnelRow<Actions: View>: View {
     let tunnel: TunnelInfo
     let selected: Bool
+    /// Another tunnel while connected: it can't be chosen, but its actions still work.
+    let dimmed: Bool
     let selection: Namespace.ID
+    @ViewBuilder let actions: () -> Actions
+    // Not @State: with the Command Line Tools alone the SwiftUI macros it expands to aren't there.
+    @StateObject private var hover = Hover()
 
     var body: some View {
         HStack {
-            Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                .foregroundStyle(selected ? Color.accentColor : .secondary)
-            Text(tunnel.displayName).lineLimit(1).truncationMode(.tail)
-            Spacer()
-            if tunnel.active {
-                LogoShield(state: .on).frame(height: 16)
+            Group {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(selected ? Color.accentColor : .secondary)
+                Text(tunnel.displayName).lineLimit(1).truncationMode(.tail)
             }
+            .opacity(dimmed ? 0.45 : 1)
+            Spacer()
+            Menu(content: actions) {
+                Image(systemName: "ellipsis.circle").foregroundStyle(.secondary)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.borderless)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            // Kept in the layout while hidden, so the name doesn't shift when it appears.
+            .opacity(hover.on ? 1 : 0)
         }
+        .onHover { hover.on = $0 }
         .padding(.horizontal, 8)
         .frame(height: tunnelRowHeight)
         .background {
@@ -305,6 +327,10 @@ private struct TunnelRow: View {
         }
         .contentShape(Rectangle())
     }
+}
+
+private final class Hover: ObservableObject {
+    @Published var on = false
 }
 
 /// A soft ring behind the power button: breathing while connected, quicker while connecting.

@@ -11,9 +11,9 @@
 "Rename…" = "Переименовать…";
 "Rename Tunnel" = "Переименовать туннель";
 "Rename" = "Переименовать";
-"Bypass VPN" = "Мимо VPN";
+"Bypass" = "Обход";
 "Disconnect to switch tunnels" = "Чтобы сменить туннель, сначала отключитесь";
-"none" = "нет";
+"Off" = "Выключен";
 "Subnets that go around the VPN" = "Подсети, которые идут мимо VPN";
 "Subnets separated by commas. Enter applies, Esc cancels; an active tunnel reconnects." = "Подсети через запятую. Enter — применить, Esc — отмена; активный туннель переподключится.";
 "Apply" = "Применить";

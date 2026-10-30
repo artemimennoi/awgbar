@@ -2,13 +2,16 @@ package io.github.artemimennoi.awgbar
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.Dp
@@ -21,22 +24,45 @@ private object LogoPaths {
     val v = PathParser().parsePathString("M 459.81,456.08 L 512.00,548.04 L 564.19,456.08").toPath()
 }
 
-/** Outlined grey shield when off, a filled green one when connected, half-filled while busy. */
+/** What the shield shows, as on the Mac. */
+enum class ShieldState { Off, Busy, On }
+
+/**
+ * The shield as the Mac menu draws it: outlined when off, half-filled while connecting or
+ * disconnecting, green with a white gear when connected. Below 30 dp the V is a smudge and is left
+ * out, as on the Mac.
+ */
 @Composable
-fun StatusShield(connected: Boolean, busy: Boolean, ink: Color, modifier: Modifier = Modifier, size: Dp = 96.dp) {
-    val green = Color(0xFF34C759)
+fun StatusShield(state: ShieldState, modifier: Modifier = Modifier, size: Dp = 96.dp) {
+    val green = Status.colors.connected
+    val ink = MaterialTheme.colorScheme.onSurface
+    val outlineInk = MaterialTheme.colorScheme.onSurfaceVariant
+    val drawV = size >= 30.dp
     Canvas(modifier.size(size)) {
         val scale = this.size.minDimension / 720f
         withTransform({
             translate(this@Canvas.size.width / 2 - 512 * scale, this@Canvas.size.height / 2 - 513 * scale)
-            scale(scale, scale, pivot = androidx.compose.ui.geometry.Offset.Zero)
+            scale(scale, scale, pivot = Offset.Zero)
         }) {
-            val shieldColor = if (connected) green else ink.copy(alpha = if (busy) 0.6f else 0.35f)
-            if (connected) drawPath(LogoPaths.shield, shieldColor)
-            else drawPath(LogoPaths.shield, shieldColor, style = Stroke(width = 40f, join = StrokeJoin.Round))
-            val gearColor = if (connected) Color.White else ink.copy(alpha = if (busy) 0.6f else 0.8f)
-            drawPath(LogoPaths.gear, gearColor)
-            drawPath(LogoPaths.v, gearColor, style = Stroke(width = 37.28f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            val outline = Stroke(width = 40f, join = StrokeJoin.Round)
+            val gearInk = when (state) {
+                ShieldState.On -> {
+                    drawPath(LogoPaths.shield, green)
+                    drawPath(LogoPaths.shield, green, style = outline)
+                    Color.White
+                }
+                ShieldState.Busy -> {
+                    clipRect(0f, 0f, 512f, 1024f) { drawPath(LogoPaths.shield, outlineInk.copy(alpha = 0.35f)) }
+                    drawPath(LogoPaths.shield, outlineInk, style = outline)
+                    ink
+                }
+                ShieldState.Off -> {
+                    drawPath(LogoPaths.shield, outlineInk, style = outline)
+                    ink
+                }
+            }
+            drawPath(LogoPaths.gear, gearInk)
+            if (drawV) drawPath(LogoPaths.v, gearInk, style = Stroke(width = 37.28f, cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
     }
 }

@@ -16,7 +16,7 @@ import (
 //
 //	loopback and awgbar0
 //	packets with our fwmark: the tunnel's own UDP and the server look-ups around it
-//	local networks, multicast and the "Bypass VPN" subnets
+//	local networks, multicast and the "Bypass" subnets
 //	DHCP
 //
 // and drops the rest, including the tunnel's DNS servers on any other interface. The marked

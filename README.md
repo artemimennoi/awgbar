@@ -47,11 +47,11 @@ outside Play (from 2026–2027 depending on the country); `adb install` keeps wo
   Amnezia's API at connect time).
 - **Connect** with the power button. One tunnel is up at a time; switch tunnels while
   disconnected. On macOS and Linux quitting the app disconnects.
-- **Bypass VPN**: subnets that go through your normal network instead, like
+- **Bypass**: subnets that go through your normal network instead, like
   `10.*, 192.168.0.0/16, fd00::/8`. On macOS and Linux local networks stay reachable anyway; on
   Android add them here to reach a printer or a NAS.
 - **Kill switch**: while connected with a config that sends all traffic into the tunnel, nothing
-  else gets out, apart from local networks and Bypass VPN subnets. If the tunnel breaks, traffic
+  else gets out, apart from local networks and Bypass subnets. If the tunnel breaks, traffic
   stays blocked until it comes back or you disconnect. Other VPNs (Tailscale and the like) can't
   reach their servers meanwhile. On Android turn on Always-on VPN and "Block connections without
   VPN" for AWG Bar in the system VPN settings to block traffic even while disconnected.

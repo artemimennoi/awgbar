@@ -1,153 +1,343 @@
 package io.github.artemimennoi.awgbar
 
+import android.os.Build
 import android.text.format.Formatter
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.*
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MoreVert
-import io.github.artemimennoi.awgbar.icons.*
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.artemimennoi.awgbar.icons.*
 
+// The screen has the Mac menu's layout, block by block: header, power button, tunnels, "Bypass",
+// one info line, two buttons at the bottom. What they're made of is Material, so the app is
+// recognizably AWG Bar and still an Android app.
+
+private val RowHeight = 56.dp
+private val RowGap = 2.dp
+
+/** "AWG Bar" on the left; a status dot and what the VPN is doing on the right. */
 @Composable
-fun TopBar(onSettings: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(start = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-        FilledTonalIconButton(onClick = onSettings) {
-            Icon(Icons.Rounded.Tune, contentDescription = stringResource(R.string.settings))
-        }
+fun Header(busy: Boolean, activeTitle: String?) {
+    val status = when {
+        busy -> stringResource(R.string.please_wait)
+        activeTitle != null -> stringResource(R.string.connected, activeTitle)
+        else -> stringResource(R.string.disconnected)
     }
-}
-
-@Composable
-fun SectionHeader(res: Int) {
-    Text(
-        stringResource(res).uppercase(),
-        style = SectionLabel,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 12.dp, top = 12.dp),
-    )
-}
-
-@Composable
-fun HeroCard(state: VpnState, tunnel: String?, host: String?, canConnect: Boolean, onToggle: () -> Unit) {
-    val on = state.active != null
-    val scheme = MaterialTheme.colorScheme
-    val container by animateColorAsState(if (on) scheme.primaryContainer else scheme.surfaceContainer, tween(500), label = "hero")
-    val content = if (on) scheme.onPrimaryContainer else scheme.onSurface
-
-    Surface(color = container, contentColor = content, shape = MaterialTheme.shapes.extraLarge, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(156.dp)) {
-                Halo(on = on, busy = state.busy)
-                StatusShield(on, state.busy, content, size = 112.dp)
-            }
-            Spacer(Modifier.height(12.dp))
+    val dot = when {
+        busy -> Status.colors.busy
+        activeTitle != null -> Status.colors.connected
+        else -> MaterialTheme.colorScheme.outline
+    }
+    Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
+        Row(Modifier.weight(1f).padding(start = 16.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(8.dp).background(dot, CircleShape))
+            Spacer(Modifier.width(8.dp))
             Text(
-                stringResource(
-                    when {
-                        state.busy -> R.string.status_busy
-                        on -> R.string.status_on
-                        else -> R.string.status_off
-                    },
-                ),
-                style = MaterialTheme.typography.headlineLarge,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                listOfNotNull(tunnel, host).joinToString(" · ").ifEmpty { stringResource(R.string.no_tunnels) },
-                style = MaterialTheme.typography.bodyLarge,
-                color = content.copy(alpha = 0.7f),
+                status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            AnimatedVisibility(on, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
-                Row(Modifier.padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile(Icons.Rounded.SouthWest, R.string.download, state.rxRate, state.rx, Modifier.weight(1f))
-                    StatTile(Icons.Rounded.NorthEast, R.string.upload, state.txRate, state.tx, Modifier.weight(1f))
-                }
+        }
+    }
+}
+
+/**
+ * The app's shield on a round button, with the halo breathing behind it while connected or busy.
+ * Connected tints the button with the status green rather than the theme's primary, so with
+ * wallpaper colors the button, halo and shield still agree.
+ */
+@Composable
+fun PowerButton(shield: ShieldState, enabled: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val status = Status.colors
+    val description = stringResource(if (shield == ShieldState.On) R.string.disconnect else R.string.connect)
+    val connected = status.connected.copy(alpha = 0.25f).compositeOver(scheme.surfaceContainer)
+    val container by animateColorAsState(if (shield == ShieldState.On) connected else scheme.surfaceContainer, label = "power")
+    Box(modifier.size(160.dp), contentAlignment = Alignment.Center) {
+        if (shield != ShieldState.Off) {
+            Halo(if (shield == ShieldState.Busy) status.busy else status.connected, fast = shield == ShieldState.Busy, Modifier.matchParentSize())
+        }
+        Surface(
+            onClick = onToggle, enabled = enabled, shape = CircleShape, color = container,
+            modifier = Modifier.matchParentSize().semantics { contentDescription = description },
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                AnimatedContent(
+                    shield,
+                    transitionSpec = { (fadeIn() + scaleIn(initialScale = 0.85f)) togetherWith (fadeOut() + scaleOut(targetScale = 0.85f)) },
+                    label = "shield",
+                    modifier = Modifier.alpha(if (!enabled && shield == ShieldState.Off) 0.38f else 1f),
+                ) { StatusShield(it, size = 88.dp) }
             }
-            Spacer(Modifier.height(24.dp))
-            val buttonColors = if (on) {
-                ButtonDefaults.buttonColors(containerColor = scheme.surfaceContainerLowest, contentColor = scheme.onSurface)
-            } else ButtonDefaults.buttonColors()
-            Button(
-                onClick = onToggle,
-                enabled = canConnect && !state.busy,
-                colors = buttonColors,
-                shape = CircleShape,
-                contentPadding = PaddingValues(horizontal = 24.dp),
-                modifier = Modifier.fillMaxWidth().height(60.dp),
-            ) {
-                if (state.busy) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.5.dp, color = LocalContentColor.current)
-                } else {
-                    Icon(Icons.Rounded.PowerSettingsNew, contentDescription = null)
-                    Spacer(Modifier.width(10.dp))
-                    Text(stringResource(if (on) R.string.disconnect else R.string.connect), style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+/**
+ * The tunnels in one card: a radio button and the name per row, with the selection's tint sliding
+ * to the chosen row; while connected the chosen row is the connected tunnel. Rename and Delete are
+ * behind each row's ⋮, or a long press. Switching needs the VPN off, so while connected the other
+ * rows are dimmed and a tap on one only says why.
+ */
+@Composable
+fun TunnelList(
+    /** File id to title, in display order. */
+    tunnels: Map<String, String>,
+    selected: String?,
+    locked: Boolean,
+    busy: Boolean,
+    onSelect: (String) -> Unit,
+    onLocked: () -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    val names = tunnels.keys.toList()
+    val index = names.indexOf(selected)
+    val highlight by animateDpAsState(
+        (RowHeight + RowGap) * index.coerceAtLeast(0), spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow), label = "selection",
+    )
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+        Box(Modifier.verticalScroll(rememberScrollState()).padding(6.dp)) {
+            if (index >= 0) {
+                Box(
+                    Modifier.offset(y = highlight).fillMaxWidth().height(RowHeight)
+                        .background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.medium),
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(RowGap)) {
+                names.forEach { name ->
+                    val chosen = name == selected
+                    TunnelRow(
+                        title = tunnels.getValue(name), chosen = chosen,
+                        dimmed = locked && !chosen, enabled = !busy,
+                        onClick = { if (!locked) onSelect(name) else if (!chosen) onLocked() },
+                        onRename = { onRename(name) }, onDelete = { onDelete(name) },
+                    )
                 }
             }
         }
     }
 }
 
-/** Soft rings behind the shield: breathing while connected, faster while connecting. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun Halo(on: Boolean, busy: Boolean) {
-    val transition = rememberInfiniteTransition(label = "halo")
-    val pulse by transition.animateFloat(
-        0.86f, 1f,
-        infiniteRepeatable(tween(if (busy) 700 else 2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pulse",
-    )
-    val ring = if (on) ShieldGreen else MaterialTheme.colorScheme.onSurface
-    val alpha by animateFloatAsState(if (on) 0.18f else if (busy) 0.10f else 0.05f, label = "alpha")
-    val scale = if (on || busy) pulse else 0.92f
-    Box(Modifier.fillMaxSize().scale(scale).clip(CircleShape).background(ring.copy(alpha = alpha)))
-    Box(Modifier.fillMaxSize(0.78f).scale(scale).clip(CircleShape).background(ring.copy(alpha = alpha)))
+private fun TunnelRow(
+    title: String,
+    chosen: Boolean,
+    dimmed: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menu by remember { mutableStateOf(false) }
+    // Only the radio and the name dim while connected: the ⋮ still works.
+    val dim = if (dimmed) 0.38f else 1f
+    Row(
+        Modifier.fillMaxWidth().height(RowHeight).clip(MaterialTheme.shapes.medium)
+            .combinedClickable(enabled = enabled, onLongClick = { menu = true }, onClick = onClick)
+            .padding(start = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = chosen, onClick = null, modifier = Modifier.padding(12.dp).alpha(dim))
+        Text(
+            title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            color = if (chosen) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f).alpha(dim),
+        )
+        Box {
+            IconButton({ menu = true }, enabled = enabled) {
+                Icon(Icons.Rounded.MoreVert, stringResource(R.string.more), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            AppMenu(menu, { menu = false }) {
+                AppMenuItem(stringResource(R.string.rename), Icons.Rounded.Edit) { menu = false; onRename() }
+                AppMenuItem(stringResource(R.string.delete), Icons.Rounded.DeleteOutline, destructive = true) { menu = false; onDelete() }
+            }
+        }
+    }
+}
+
+/** No tunnels yet: what to import and where from, in the tunnels' card. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun EmptyState(onClipboard: () -> Unit, onQr: () -> Unit, onFile: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(stringResource(R.string.no_tunnels), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.no_tunnels_hint), style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(16.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ImportButton(Icons.Rounded.ContentPaste, R.string.from_clipboard, onClipboard)
+                ImportButton(Icons.Rounded.QrCodeScanner, R.string.scan_qr, onQr)
+                ImportButton(Icons.Rounded.FolderOpen, R.string.from_file, onFile)
+            }
+        }
+    }
 }
 
 @Composable
-private fun StatTile(icon: ImageVector, label: Int, rate: Long, total: Long, modifier: Modifier) {
-    val context = LocalContext.current
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.6f), shape = MaterialTheme.shapes.medium, modifier = modifier) {
-        Column(Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, null, Modifier.size(16.dp), tint = LocalContentColor.current.copy(alpha = 0.7f))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = LocalContentColor.current.copy(alpha = 0.7f))
+private fun ImportButton(icon: ImageVector, text: Int, onClick: () -> Unit) {
+    FilledTonalButton(onClick, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
+        Icon(icon, null, Modifier.size(ButtonDefaults.IconSize))
+        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+        Text(stringResource(text))
+    }
+}
+
+/** "Bypass" and the subnets that go around the tunnel, on one line; a tap opens [BypassDialog]. */
+@Composable
+fun BypassRow(subnets: List<String>, enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick, enabled = enabled, color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth().height(56.dp),
+    ) {
+        Row(Modifier.padding(start = 20.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.bypass), style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                subnets.joinToString(", ").ifEmpty { stringResource(R.string.bypass_off) },
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            Icon(Icons.Rounded.Edit, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp).size(20.dp))
+        }
+    }
+}
+
+/** Edits the bypass list, checking it as you type; Apply saves it and reconnects an active tunnel. */
+@Composable
+fun BypassDialog(subnets: List<String>, onDismiss: () -> Unit, onSave: (List<String>) -> Unit) {
+    val initial = subnets.joinToString(", ")
+    var text by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
+    val (parsed, invalid) = Cidr.parseList(text.text)
+    val focus = remember { FocusRequester() }
+    fun save() {
+        if (invalid.isEmpty()) onSave(parsed.map { it.toString() }.distinct())
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.bypass)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.bypass_hint))
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    text, { text = it }, Modifier.fillMaxWidth().focusRequester(focus),
+                    placeholder = { Text("10.*, 192.168.0.0/16") },
+                    singleLine = true,
+                    isError = invalid.isNotEmpty(),
+                    supportingText = if (invalid.isNotEmpty()) {
+                        { Text(stringResource(R.string.bypass_invalid, invalid.joinToString(", "))) }
+                    } else null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { save() }),
+                )
             }
-            Spacer(Modifier.height(6.dp))
-            Text("${Formatter.formatShortFileSize(context, rate)}/s", style = MaterialTheme.typography.titleLarge, maxLines = 1)
-            Text(Formatter.formatShortFileSize(context, total), style = MaterialTheme.typography.bodySmall, color = LocalContentColor.current.copy(alpha = 0.6f))
+        },
+        confirmButton = { TextButton(::save, enabled = invalid.isEmpty()) { Text(stringResource(R.string.apply)) } },
+        dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+    LaunchedEffect(Unit) { focus.requestFocus() }
+}
+
+/** One fixed-height line for what matters most right now: an error, a notice, the traffic, or where Connect goes. */
+@Composable
+fun InfoRow(error: String?, notice: String?, onDismissError: () -> Unit, connected: Boolean, rx: Long, tx: Long, host: String?) {
+    val scheme = MaterialTheme.colorScheme
+    val small = MaterialTheme.typography.bodySmall
+    val context = LocalContext.current
+    Row(Modifier.fillMaxWidth().height(40.dp).padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        when {
+            error != null -> {
+                Icon(Icons.Rounded.Warning, null, tint = scheme.error, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(error, style = small, color = scheme.error, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                IconButton(onDismissError) { Icon(Icons.Rounded.Close, stringResource(R.string.close), Modifier.size(18.dp)) }
+            }
+            notice != null -> {
+                Icon(Icons.Rounded.Info, null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(notice, style = small, color = scheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            }
+            connected -> {
+                host?.let { SelectionContainer { Text(it, style = small, color = scheme.onSurfaceVariant, maxLines = 1) } }
+                Spacer(Modifier.weight(1f))
+                val bytes = { n: Long -> Formatter.formatShortFileSize(context, n) }
+                Text("↓ ${bytes(rx)}    ↑ ${bytes(tx)}", style = small.copy(fontFeatureSettings = "tnum"), maxLines = 1)
+            }
+            // Where the power button will connect to, dimmed, in the same spot as the connected IP.
+            host != null -> SelectionContainer { Text(host, style = small, color = scheme.outline, maxLines = 1) }
+        }
+    }
+}
+
+/** Add a tunnel on the left, settings on the right; each opens its sheet. */
+@Composable
+fun Footer(onAdd: () -> Unit, onSettings: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        FilledTonalIconButton(onAdd, Modifier.size(56.dp)) {
+            Icon(Icons.Rounded.Add, stringResource(R.string.add_tunnel))
+        }
+        Spacer(Modifier.weight(1f))
+        FilledTonalIconButton(onSettings, Modifier.size(56.dp)) {
+            Icon(Icons.Rounded.Settings, stringResource(R.string.settings))
         }
     }
 }
@@ -160,134 +350,6 @@ private fun groupShape(index: Int, count: Int): RoundedCornerShape {
         topStart = if (index == 0) big else small, topEnd = if (index == 0) big else small,
         bottomStart = if (index == count - 1) big else small, bottomEnd = if (index == count - 1) big else small,
     )
-}
-
-@Composable
-fun TunnelGroup(
-    /** File id to title, in display order. */
-    tunnels: Map<String, String>,
-    selected: String?,
-    active: String?,
-    locked: Boolean,
-    onSelect: (String) -> Unit,
-    onRename: (String) -> Unit,
-    onDelete: (String) -> Unit,
-    onAdd: () -> Unit,
-) {
-    val names = tunnels.keys.toList()
-    val count = names.size + 1
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        names.forEachIndexed { i, name ->
-            val isSelected = name == selected
-            // While connected the other tunnels are dimmed and can't be picked; their menu still works.
-            val dimmed = locked && !isSelected
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainer, shape = groupShape(i, count),
-                enabled = !locked, onClick = { onSelect(name) },
-            ) {
-                Row(Modifier.padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    val bg by animateColorAsState(
-                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh, label = "dot",
-                    )
-                    Box(Modifier.alpha(if (dimmed) 0.45f else 1f).size(40.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
-                        Icon(
-                            if (isSelected) Icons.Rounded.Check else Icons.Rounded.Shield, null,
-                            tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f).alpha(if (dimmed) 0.45f else 1f)) {
-                        Text(tunnels.getValue(name), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        val host = remember(name) { Vpn.endpointHost(name) }
-                        val sub = if (name == active) stringResource(R.string.active) else host
-                        sub?.let {
-                            Text(
-                                it, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                color = if (name == active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    var menu by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton({ menu = true }) { Icon(Icons.Rounded.MoreVert, stringResource(R.string.more)) }
-                        DropdownMenu(menu, { menu = false }, shape = MaterialTheme.shapes.medium) {
-                            DropdownMenuItem(
-                                { Text(stringResource(R.string.rename)) }, { menu = false; onRename(name) },
-                                leadingIcon = { Icon(Icons.Rounded.Edit, null) },
-                            )
-                            DropdownMenuItem(
-                                { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }, { menu = false; onDelete(name) },
-                                leadingIcon = { Icon(Icons.Rounded.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = groupShape(names.size, count), onClick = onAdd) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Add, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Text(stringResource(R.string.add_tunnel), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    if (names.isEmpty()) {
-                        Text(stringResource(R.string.no_tunnels_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun BypassCard(subnets: List<String>, onAdd: (List<String>) -> Unit, onRemove: (String) -> Unit) {
-    var draft by remember { mutableStateOf("") }
-    val (parsed, invalid) = Cidr.parseList(draft)
-    fun submit() {
-        if (parsed.isNotEmpty() && invalid.isEmpty()) { onAdd(parsed.map { it.toString() }); draft = "" }
-    }
-    Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.bypass_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (subnets.isNotEmpty()) {
-                FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    subnets.forEach { net ->
-                        InputChip(
-                            selected = false,
-                            onClick = { onRemove(net) },
-                            label = { Text(net) },
-                            trailingIcon = { Icon(Icons.Rounded.Close, stringResource(R.string.delete), Modifier.size(18.dp)) },
-                            shape = CircleShape,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = draft,
-                onValueChange = { draft = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("10.*, 192.168.0.0/16") },
-                singleLine = true,
-                shape = CircleShape,
-                isError = invalid.isNotEmpty(),
-                supportingText = if (invalid.isNotEmpty()) {
-                    { Text(stringResource(R.string.bypass_invalid, invalid.joinToString(", "))) }
-                } else null,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { submit() }),
-                trailingIcon = {
-                    FilledIconButton(onClick = ::submit, enabled = parsed.isNotEmpty() && invalid.isEmpty(), modifier = Modifier.padding(end = 4.dp)) {
-                        Icon(Icons.Rounded.Add, stringResource(R.string.bypass_add))
-                    }
-                },
-            )
-        }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -333,11 +395,13 @@ fun SettingsSheet(
     onWallpaperColors: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // Wallpaper colors came with Android 12.
+    val count = if (Build.VERSION.SDK_INT >= 31) 2 else 1
     ModalBottomSheet(onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(stringResource(R.string.settings), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 8.dp, bottom = 12.dp))
-            SwitchRow(Icons.Rounded.NotificationsActive, R.string.notif_setting, R.string.notif_setting_desc, notification, groupShape(0, 2), onNotification)
-            SwitchRow(Icons.Rounded.Palette, R.string.wallpaper, R.string.wallpaper_desc, wallpaperColors, groupShape(1, 2), onWallpaperColors)
+            SwitchRow(Icons.Rounded.NotificationsActive, R.string.notif_setting, R.string.notif_setting_desc, notification, groupShape(0, count), onNotification)
+            if (count == 2) SwitchRow(Icons.Rounded.Palette, R.string.wallpaper, R.string.wallpaper_desc, wallpaperColors, groupShape(1, count), onWallpaperColors)
         }
     }
 }
@@ -362,20 +426,24 @@ private fun SwitchRow(icon: ImageVector, title: Int, subtitle: Int, checked: Boo
 
 @Composable
 fun RenameDialog(old: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var text by remember(old) { mutableStateOf(old) }
-    val valid = KeyImport.cleanTitle(text) != null
+    var text by remember(old) { mutableStateOf(TextFieldValue(old, TextRange(0, old.length))) }
+    val valid = KeyImport.cleanTitle(text.text) != null && text.text.trim() != old
+    val focus = remember { FocusRequester() }
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.Edit, null) },
-        title = { Text(stringResource(R.string.rename)) },
+        title = { Text(stringResource(R.string.rename_title)) },
         text = {
             OutlinedTextField(
-                text, { text = it }, singleLine = true, shape = MaterialTheme.shapes.medium,
+                text, { text = it }, Modifier.focusRequester(focus), singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (valid) onConfirm(text.text) }),
             )
         },
-        confirmButton = { Button({ onConfirm(text) }, enabled = valid && text.trim() != old) { Text(stringResource(R.string.ok)) } },
+        confirmButton = { TextButton({ onConfirm(text.text) }, enabled = valid) { Text(stringResource(R.string.rename)) } },
         dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
 @Composable
@@ -386,7 +454,7 @@ fun ImportConfirmDialog(tunnels: List<Pair<String, String?>>, onDismiss: () -> U
         text = {
             Text(tunnels.joinToString("\n") { (name, endpoint) -> listOfNotNull(name, endpoint).joinToString(" · ") })
         },
-        confirmButton = { Button(onConfirm) { Text(stringResource(R.string.import_confirm)) } },
+        confirmButton = { TextButton(onConfirm) { Text(stringResource(R.string.import_confirm)) } },
         dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
@@ -397,8 +465,9 @@ fun DeleteDialog(name: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.DeleteOutline, null) },
         title = { Text(stringResource(R.string.delete_title, name)) },
+        text = { Text(stringResource(R.string.delete_message)) },
         confirmButton = {
-            Button(onConfirm, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) {
+            TextButton(onConfirm, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                 Text(stringResource(R.string.delete))
             }
         },

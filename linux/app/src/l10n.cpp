@@ -19,7 +19,7 @@ static const QHash<QString, QString> &russian()
         {QStringLiteral("Delete…"), QStringLiteral("Удалить…")},
         {QStringLiteral("Rename Tunnel"), QStringLiteral("Переименовать туннель")},
         {QStringLiteral("Name:"), QStringLiteral("Имя:")},
-        {QStringLiteral("Bypass VPN"), QStringLiteral("Обход VPN")},
+        {QStringLiteral("Bypass"), QStringLiteral("Обход")},
         {QStringLiteral("Disconnect to switch tunnels"), QStringLiteral("Чтобы сменить туннель, сначала отключитесь")},
         {QStringLiteral("Apply"), QStringLiteral("Применить")},
         {QStringLiteral("Subnets separated by commas; they go around the VPN"),

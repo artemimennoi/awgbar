@@ -15,15 +15,16 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     /** Text handed over by a "share"/"open with" intent, imported once the UI is up. */
@@ -76,7 +77,9 @@ class MainActivity : ComponentActivity() {
     }.getOrNull()
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** A line for the info row; every one is a new object, so the same text again restarts its clock. */
+private class Message(val text: String)
+
 @Composable
 private fun MainScreen(
     incoming: MutableStateFlow<Pair<String, String>?>,
@@ -92,20 +95,24 @@ private fun MainScreen(
     var deleting by remember { mutableStateOf<String?>(null) }
     var bypass by remember { mutableStateOf(Cidr.parseList(Vpn.store.bypass).first.map { it.toString() }) }
     var scanning by remember { mutableStateOf(false) }
-    var adding by remember { mutableStateOf(false) }
-    var settings by remember { mutableStateOf(false) }
     var notification by remember { mutableStateOf(Vpn.store.showNotification) }
-    val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    var settings by remember { mutableStateOf(false) }
+    var adding by remember { mutableStateOf(false) }
+    var editingBypass by remember { mutableStateOf(false) }
 
-    fun say(text: String) { scope.launch { snackbar.currentSnackbarData?.dismiss(); snackbar.showSnackbar(text) } }
+    // Errors and notices fade out after six seconds, as in the Mac menu.
+    var error by remember { mutableStateOf<Message?>(null) }
+    var notice by remember { mutableStateOf<Message?>(null) }
+    LaunchedEffect(error) { if (error != null) { delay(6000); error = null } }
+    LaunchedEffect(notice) { if (notice != null) { delay(6000); notice = null } }
+    fun say(text: String) { notice = Message(text) }
+    fun fail(text: String) { error = Message(text) }
     fun reload() { tunnels = Vpn.store.titles(); selected = Vpn.store.selected }
 
     fun importWith(block: () -> ImportResult) {
         try {
             val result = block()
             reload()
-            adding = false
             val r = context.resources
             say(
                 listOfNotNull(
@@ -115,9 +122,9 @@ private fun MainScreen(
                 ).joinToString("\n"),
             )
         } catch (e: ImportError) {
-            say(context.getString(e.res))
+            fail(context.getString(e.res))
         } catch (e: ConfigError) {
-            say(context.getString(R.string.err_config, e.message))
+            fail(context.getString(R.string.err_config, e.message))
         }
     }
 
@@ -132,12 +139,12 @@ private fun MainScreen(
             try {
                 offered = (t to n) to KeyImport.parse(t, n)
             } catch (e: ImportError) {
-                say(context.getString(e.res))
+                fail(context.getString(e.res))
             }
             incoming.value = null
         }
     }
-    LaunchedEffect(state.error) { state.error?.let { say(it); Vpn.clearError() } }
+    LaunchedEffect(state.error) { state.error?.let { fail(it); Vpn.clearError() } }
 
     val vpnPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (VpnService.prepare(context) == null) Vpn.connect()
@@ -157,70 +164,73 @@ private fun MainScreen(
         } else Vpn.disconnect()
     }
 
+    /** An unchanged list doesn't reconnect the tunnel. */
     fun saveBypass(list: List<String>) {
+        editingBypass = false
+        if (list == bypass) return
         bypass = list
         Vpn.store.bypass = list.joinToString(", ")
         Vpn.reconnectIfActive()
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbar) },
-    ) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 16.dp, end = 16.dp,
-                top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp,
-            ),
+    fun fromClipboard() {
+        val clip = context.getSystemService(ClipboardManager::class.java).primaryClip
+        val text = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
+        if (text.isNullOrBlank()) fail(context.getString(R.string.clipboard_empty)) else import(text, "awg")
+    }
+
+    val shield = when {
+        state.busy -> ShieldState.Busy
+        state.active != null -> ShieldState.On
+        else -> ShieldState.Off
+    }
+    val shown = state.active ?: selected
+    // A Surface rather than a plain background, so text without its own color follows the theme.
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(
+            // Not safeDrawing: text is only typed in dialogs, so the keyboard needn't squeeze the screen behind them.
+            Modifier.systemBarsPadding().displayCutoutPadding().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { TopBar(onSettings = { settings = true }) }
-            item {
-                val shown = state.active ?: selected
-                HeroCard(
-                    state = state,
-                    tunnel = shown?.let { tunnels[it] ?: it },
-                    host = shown?.let { Vpn.endpointHost(it) },
-                    canConnect = selected != null,
-                    onToggle = ::toggle,
-                )
+            Header(state.busy, state.active?.let { tunnels[it] ?: it })
+            PowerButton(
+                shield, enabled = !state.busy && selected != null, onToggle = ::toggle,
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = 20.dp),
+            )
+            // The tunnels' card grows with the list and scrolls once it fills this space.
+            Column(Modifier.weight(1f)) {
+                if (tunnels.isEmpty()) {
+                    EmptyState(::fromClipboard, { scanning = true }, { openFile.launch(arrayOf("*/*")) })
+                } else {
+                    // Switching tunnels needs the VPN off first.
+                    val locked = state.active != null || state.busy
+                    TunnelList(
+                        tunnels = tunnels,
+                        selected = shown,
+                        locked = locked,
+                        busy = state.busy,
+                        onSelect = { name -> Vpn.store.selected = name; selected = name },
+                        onLocked = { say(context.getString(R.string.switch_locked)) },
+                        onRename = { renaming = it },
+                        onDelete = { deleting = it },
+                    )
+                }
             }
-            item { SectionHeader(R.string.tunnels) }
-            item {
-                // Switching tunnels needs the VPN off first.
-                val locked = state.active != null || state.busy
-                TunnelGroup(
-                    tunnels = tunnels,
-                    selected = state.active ?: selected,
-                    active = state.active,
-                    locked = locked,
-                    onSelect = { name -> if (!locked) { Vpn.store.selected = name; selected = name } },
-                    onRename = { renaming = it },
-                    onDelete = { deleting = it },
-                    onAdd = { adding = true },
-                )
-            }
-            item { SectionHeader(R.string.bypass) }
-            item {
-                BypassCard(
-                    subnets = bypass,
-                    onAdd = { added -> saveBypass((bypass + added).distinct()) },
-                    onRemove = { gone -> saveBypass(bypass - gone) },
-                )
-            }
+            BypassRow(bypass, enabled = !state.busy) { editingBypass = true }
+            InfoRow(
+                error?.text, notice?.text, onDismissError = { error = null },
+                connected = state.active != null, rx = state.rx, tx = state.tx, host = shown?.let { Vpn.endpointHost(it) },
+            )
+            Footer(onAdd = { adding = true }, onSettings = { settings = true })
         }
     }
 
+    // Each choice closes the sheet, so what it did shows in the info line.
     if (adding) {
         AddSheet(
             onDismiss = { adding = false },
-            onClipboard = {
-                val clip = context.getSystemService(ClipboardManager::class.java).primaryClip
-                val text = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
-                if (text.isNullOrBlank()) say(context.getString(R.string.clipboard_empty)) else import(text, "awg")
-            },
-            onFile = { openFile.launch(arrayOf("*/*")) },
+            onClipboard = { adding = false; fromClipboard() },
+            onFile = { adding = false; openFile.launch(arrayOf("*/*")) },
             onQr = { adding = false; scanning = true },
         )
     }
@@ -237,6 +247,9 @@ private fun MainScreen(
             onWallpaperColors = onWallpaperColors,
             onDismiss = { settings = false },
         )
+    }
+    if (editingBypass) {
+        BypassDialog(bypass, onDismiss = { editingBypass = false }, onSave = ::saveBypass)
     }
     if (scanning) {
         QrScanner(
