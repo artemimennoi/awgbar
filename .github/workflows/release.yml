@@ -74,7 +74,8 @@ jobs:
           go-version-file: linux/go.mod
           cache: false
       - run: make -C linux deb-${{ matrix.flavor }} ARCH=amd64
-      - run: mv linux/build/dist/awgbar_${{ needs.version.outputs.version }}_${{ matrix.flavor }}_amd64.deb "$DEB"
+      # Copied, not moved: the container left linux/build/dist to root.
+      - run: cp linux/build/dist/awgbar_${{ needs.version.outputs.version }}_${{ matrix.flavor }}_amd64.deb "$DEB"
       - uses: actions/upload-artifact@v7
         with:
           name: release-linux-${{ matrix.flavor }}

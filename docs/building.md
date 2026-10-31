@@ -110,10 +110,11 @@ Android's `versionCode` derive from it (x.y.z → x·10000 + y·100 + z).
    ```
 
 3. Once that run has passed, `make release` (on the Mac with the keys) downloads its artifact,
-   signs the APK with the release keystore (`zipalign`, then `apksigner` from build-tools 36,
-   checked against the certificate every release has) and puts it with the rest into
-   `build.noindex/release`, writes `SHA256SUMS` over all of them, signs it into `SHA256SUMS.sig`
-   and checks that signature against the public key in `Updater.swift`. It also writes
+   signs the APK with the keystore from `~/.android/awgbar-release.properties` (`zipalign`, then
+   `apksigner` from build-tools 36, checked against the certificate every release has) and puts
+   it with the rest into `build.noindex/release`, named `awgbar-<version>-<platform>-…`. It
+   writes `SHA256SUMS` over all of them, signs it into `SHA256SUMS.sig` and checks that
+   signature against the public key in `Updater.swift`. It also writes
    `build.noindex/release-notes.md`: the download table with direct links
    (`scripts/release-download.md`). Add what changed below it. `make release RUN=<id>` takes the
    files of another run of the workflow, for example to try the signing on a branch.
