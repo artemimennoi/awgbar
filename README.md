@@ -17,11 +17,12 @@ with a table of direct links; the files are:
 |---|---|
 | macOS 26+, Apple Silicon | `awgbar-<version>-macos-arm64.dmg` |
 | Android 10+, 64-bit ARM | `awgbar-<version>-android.apk` |
-| Ubuntu 22.04, 24.04, Debian 12 and distros built on them | `awgbar-<version>-linux-qt5-<amd64\|arm64>.deb` |
-| Ubuntu 25.04+, Debian 13 | `awgbar-<version>-linux-qt6-<amd64\|arm64>.deb` |
+| Ubuntu 22.04, 24.04, Debian 12 and distros built on them | `awgbar-<version>-linux-qt5-amd64.deb` |
+| Ubuntu 25.04+, Debian 13 | `awgbar-<version>-linux-qt6-amd64.deb` |
 
-On Linux, `amd64` is for Intel and AMD PCs, `arm64` for ARM. The two packages differ only in the
-Qt they use, so the app matches your desktop's style: Plasma 5 has Breeze only for Qt 5.
+The Linux packages are for Intel and AMD PCs; for ARM, build one yourself
+([docs/building.md](docs/building.md)). The two packages differ only in the Qt they use, so the
+app matches your desktop's style: Plasma 5 has Breeze only for Qt 5.
 
 ## Install
 

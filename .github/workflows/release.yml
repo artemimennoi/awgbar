@@ -1,0 +1,123 @@
+# Builds the files of release v<VERSION> when its tag is pushed: the macOS DMG and the third-party
+# sources, the two Linux packages (qt5/qt6, amd64) and the Android APK (arm64), as one artifact,
+# awgbar-<version>. Nothing here is signed and the workflow has no secrets: `make release` on the
+# Mac downloads the artifact, signs the APK and SHA256SUMS with keys that never leave it, and
+# publishes. It also runs by hand and on pull requests that change this file.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: [.github/workflows/release.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Everything is built from scratch, without CI's caches: what comes out ends up in a signed release.
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        run: |
+          version=$(cat VERSION)
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "tag $GITHUB_REF_NAME doesn't match VERSION $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  macos:
+    name: macOS DMG and sources
+    needs: version
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+      - run: make dist
+      - run: codesign --verify --deep --strict "build.noindex/AWG Bar.app"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-macos
+          path: |
+            build.noindex/dist/awgbar-${{ needs.version.outputs.version }}-macos-arm64.dmg
+            build.noindex/dist/awgbar-${{ needs.version.outputs.version }}-third-party-sources.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  linux:
+    name: Linux package (${{ matrix.flavor }})
+    needs: version
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        flavor: [qt5, qt6]
+    env:
+      DEB: awgbar-${{ needs.version.outputs.version }}-linux-${{ matrix.flavor }}-amd64.deb
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: linux/go.mod
+          cache: false
+      - run: make -C linux deb-${{ matrix.flavor }} ARCH=amd64
+      - run: mv linux/build/dist/awgbar_${{ needs.version.outputs.version }}_${{ matrix.flavor }}_amd64.deb "$DEB"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-linux-${{ matrix.flavor }}
+          path: ${{ env.DEB }}
+          if-no-files-found: error
+          retention-days: 1
+
+  android:
+    name: Android APK
+    needs: version
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: android
+    env:
+      APK: awgbar-${{ needs.version.outputs.version }}-android.apk
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0 ndk;27.2.12479018 cmake;3.22.1"
+      # Without a keystore Gradle leaves the release APK unsigned (app/build.gradle.kts).
+      - run: ./gradlew --no-daemon assembleRelease
+      - run: mv app/build/outputs/apk/release/app-release-unsigned.apk "../$APK"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-android
+          path: ${{ env.APK }}
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Release files
+    needs: [version, macos, linux, android]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/upload-artifact/merge@v7
+        with:
+          name: awgbar-${{ needs.version.outputs.version }}
+          pattern: release-*
+          delete-merged: true
+          retention-days: 14
