@@ -93,7 +93,7 @@ and the Android unit tests and debug build.
 `.github/workflows/release.yml` builds the files of a release when its tag `v<VERSION>` is pushed
 (a tag that doesn't match `VERSION` fails), by hand (`gh workflow run release.yml --ref <branch>`)
 and on pull requests that change it: the DMG and the third-party sources on macOS, the two Linux
-packages for amd64 and the APK, in parallel and without caches, about 15 minutes. They come out
+packages for amd64 and the APK, in parallel and without caches, about 5 minutes. They come out
 unsigned as one artifact, `awgbar-<version>`, kept for 14 days. The workflow has no secrets and
 can't write to the repository: the signing keys stay on the Mac, and `make release` signs there.
 
