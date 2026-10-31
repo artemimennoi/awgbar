@@ -13,7 +13,7 @@ building it from source, working on it and making releases. How the pieces fit i
 | `android/` | Android: `app/` (Kotlin, Compose), `tunnel/` (amneziawg-android's userspace backend, Apache-2.0) |
 | `VERSION` | the one version of all three clients |
 | `scripts/sign.swift` | signs a release's `SHA256SUMS` |
-| `.github/workflows/ci.yml` | CI |
+| `.github/workflows/` | CI (`ci.yml`) and release builds (`release.yml`) |
 
 ## macOS
 
@@ -44,7 +44,7 @@ targets (Ubuntu 22.04 for qt5, Debian 13 for qt6).
 
 ```bash
 make -C linux deb              # linux/build/dist/awgbar_<version>_qt{5,6}_amd64.deb
-make -C linux deb ARCH=arm64
+make -C linux deb ARCH=arm64   # for ARM machines and VMs; releases have amd64 only
 make -C linux test             # helper unit tests in a container
 ```
 
@@ -88,8 +88,14 @@ its properties file.
 
 `.github/workflows/ci.yml` runs on every pull request and push to `main`: gofmt, vet and tests of
 the Linux helper, both Linux packages (uploaded as artifacts), the macOS app with its pinned tools,
-and the Android unit tests and debug build. It doesn't release anything: the signing keys stay on
-the Mac.
+and the Android unit tests and debug build.
+
+`.github/workflows/release.yml` builds the files of a release when its tag `v<VERSION>` is pushed
+(a tag that doesn't match `VERSION` fails), by hand (`gh workflow run release.yml --ref <branch>`)
+and on pull requests that change it: the DMG and the third-party sources on macOS, the two Linux
+packages for amd64 and the APK, in parallel and without caches, about 5 minutes. They come out
+unsigned as one artifact, `awgbar-<version>`, kept for 14 days. The workflow has no secrets and
+can't write to the repository: the signing keys stay on the Mac, and `make release` signs there.
 
 ## Releasing
 
@@ -97,15 +103,25 @@ All clients share `VERSION` and one GitHub release `v<VERSION>`; the macOS bundl
 Android's `versionCode` derive from it (x.y.z → x·10000 + y·100 + z).
 
 1. Bump `VERSION` (and `HelperPaths.version` if the macOS helper changed), commit, merge to `main`.
-2. `make release` builds the DMG and the third-party sources, the four Linux packages and the
-   APK into `build.noindex/release`, named `awgbar-<version>-<platform>-…`, writes
-   `SHA256SUMS` over all of them and signs it into `SHA256SUMS.sig`. It also writes
-   `build.noindex/release-notes.md`: the download table with direct links
-   (`scripts/release-download.md`). Add what changed below it.
-3. Publish them as a pre-release:
+2. Tag the merged commit and push the tag; `release.yml` builds the files:
 
    ```bash
-   gh release create "v$(cat VERSION)" build.noindex/release/* --prerelease --title "AWG Bar $(cat VERSION) beta" --notes-file build.noindex/release-notes.md
+   git pull && git tag "v$(cat VERSION)" && git push origin "v$(cat VERSION)"
+   ```
+
+3. Once that run has passed, `make release` (on the Mac with the keys) downloads its artifact,
+   signs the APK with the keystore from `~/.android/awgbar-release.properties` (`zipalign`, then
+   `apksigner` from build-tools 36, checked against the certificate every release has) and puts
+   it with the rest into `build.noindex/release`, named `awgbar-<version>-<platform>-…`. It
+   writes `SHA256SUMS` over all of them, signs it into `SHA256SUMS.sig` and checks that
+   signature against the public key in `Updater.swift`. It also writes
+   `build.noindex/release-notes.md`: the download table with direct links
+   (`scripts/release-download.md`). Add what changed below it. `make release RUN=<id>` takes the
+   files of another run of the workflow, for example to try the signing on a branch.
+4. Publish them as a pre-release, with the command `make release` prints:
+
+   ```bash
+   gh release create "v$(cat VERSION)" build.noindex/release/* --verify-tag --prerelease --title "AWG Bar $(cat VERSION) beta" --notes-file build.noindex/release-notes.md
    ```
 
    The DMG's name has to end in `-macos-arm64.dmg`: that is how installed apps find it.
