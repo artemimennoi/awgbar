@@ -17,18 +17,24 @@ building it from source, working on it and making releases. How the pieces fit i
 
 ## macOS
 
-Needs macOS 26, the Xcode Command Line Tools (Swift), Go, git and curl.
+Needs macOS 26, the Xcode Command Line Tools (Swift), Rust through rustup, git and curl, and GitHub
+credentials that can read `artemimennoi/awgcore` (private).
 
 ```bash
 make install
 ```
 
-builds `amneziawg-go`, `awg`, `awg-quick` and a self-contained `bash` from pinned sources into
-`.deps`, assembles `build.noindex/AWG Bar.app` and copies it to `/Applications`. Open it and press
+builds awgcore (the userspace tunnel, Rust; its repository pins the toolchain and vendors every
+crate, so cargo builds offline), `awg`, `awg-quick` and a self-contained `bash` from pinned sources
+into `.deps`, assembles `build.noindex/AWG Bar.app` and copies it to `/Applications`. Open it and press
 **Install Helper**. `make app` only builds the bundle; `make uninstall` removes the helper and the
 app (tunnels stay unless you run `Resources/uninstall-helper.sh --purge`). Bump
 `HelperPaths.version` in `Sources/AWGShared/Protocol.swift` whenever the helper or the bundled tools
 change, so the app offers to reinstall it.
+
+`make app USERSPACE=amneziawg-go` builds the fallback, with `amneziawg-go` (needs Go) instead of
+awgcore; the helper runs whichever the app bundles. The revisions are `AWGCORE_REV`, `AWG_GO_REV`
+and `AWG_TOOLS_REV` in the `Makefile`.
 
 The helper runs unprivileged for tests with `AWGBAR_SUPPORT` (a scratch directory with `tunnels/`
 and `run/`) and `AWGBAR_SOCKET`; `--print-config <tunnel>` then shows what awg-quick would get.

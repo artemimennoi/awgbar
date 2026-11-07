@@ -66,12 +66,13 @@ jobs:
         with:
           go-version: stable
           cache: false
-      # amneziawg-go, awg and bash at the revisions the Makefile pins.
+      # amneziawg-go, awg and bash at the revisions the Makefile pins. CI builds the amneziawg-go
+      # fallback: awgcore's repository is private and CI has no credentials for it.
       - uses: actions/cache@v6
         with:
           path: .deps
           key: deps-${{ runner.os }}-${{ hashFiles('Makefile') }}
-      - run: make app
+      - run: make app USERSPACE=amneziawg-go
       - run: codesign --verify --deep --strict "build.noindex/AWG Bar.app"
 
   android:
