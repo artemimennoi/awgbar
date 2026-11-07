@@ -7,7 +7,7 @@
 # local checkout instead, for development: ./gradlew -PawgcoreSrc=$HOME/projects/awgcore …
 
 AWGCORE_URL ?= https://github.com/artemimennoi/awgcore
-AWGCORE_REV ?= 0000000000000000000000000000000000000000
+AWGCORE_REV ?= 690430c43cf064dda2cbee3ea7705404d71d649f
 
 ifeq ($(GRADLE_USER_HOME),)
 $(error GRADLE_USER_HOME is not set: run this through Gradle)
