@@ -23,7 +23,7 @@ AWG_TOOLS_REV ?= ee0f0a9aa34ff0a0da4b3433b9512781cfe02843
 USERSPACE   ?= awgcore
 AWGCORE     := $(DEPS)/awgcore
 AWGCORE_URL ?= https://github.com/artemimennoi/awgcore
-AWGCORE_REV ?= c58134e808559f1169cb7e7b8d4df5a3abcb8eb0
+AWGCORE_REV ?= 93433dc50a16444513aa5360c1b0d8657e6d442d
 ifeq ($(USERSPACE),awgcore)
 USERSPACE_BIN := $(AWGCORE)/target/release/awgcore
 USERSPACE_DEP := $(AWGCORE)/.built-$(AWGCORE_REV)
