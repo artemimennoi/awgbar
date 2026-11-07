@@ -303,6 +303,7 @@ func up(_ name: String) throws {
     }
     if config.leaksIPv6 { blockIPv6(name) }
     armKillSwitch(name, config)
+    watched = Watched(name: name)
 }
 
 /// keepKillSwitch: for a reconnect with new settings, the next up() replaces the rules, and
@@ -318,9 +319,95 @@ func down(_ name: String, keepKillSwitch: Bool = false) throws {
         waitForMonitorExit(path)
     }
     unblockIPv6(name)
-    if !keepKillSwitch { disarmKillSwitch(name) }
+    if !keepKillSwitch {
+        disarmKillSwitch(name)
+        if watched?.name == name { watched = nil }
+    }
     try? fm.removeItem(atPath: runtime)
     guard result.status == 0 else { throw HelperError("awg-quick down failed (\(result.status))", log: result.output) }
+}
+
+// MARK: - Watchdog
+
+/// The connected tunnel and what the watchdog saw on its last look.
+struct Watched {
+    let name: String
+    /// Connected, or reconnected by the watchdog.
+    var since = Date()
+    var rx: Int64 = -1
+    var tx: Int64 = -1
+    /// The first look that saw traffic go in and nothing come back.
+    var stalledSince: Date?
+    /// A reconnect of ours failed: try again from then on.
+    var retryAt: Date?
+}
+
+var watched: Watched?
+
+/// Requests and the watchdog both take tunnels down and up, so one at a time.
+let operations = NSLock()
+
+/// The tunnel that is up, for a helper restarted under it.
+func connectedTunnel() -> String? {
+    let files = (try? fm.contentsOfDirectory(atPath: HelperPaths.tunnels)) ?? []
+    return files.lazy.filter { $0.hasSuffix(".conf") }.map { String($0.dropLast(5)) }
+        .first { isValidTunnelName($0) && realInterface($0) != nil }
+}
+
+/// Reconnects a tunnel that looks connected but carries nothing, as the Linux helper does:
+/// traffic goes in, nothing comes back, and the latest handshake is older than WireGuard's own
+/// rekey would leave it. A server route lost on a network change and an amneziawg-go that stopped
+/// receiving both end like this, and a reconnect clears either. An idle tunnel is left alone.
+func checkTunnel(now: Date = Date()) {
+    if watched == nil, let name = connectedTunnel() { watched = Watched(name: name) }
+    guard var tunnel = watched else { return }
+    guard realInterface(tunnel.name) != nil else {
+        // Only a reconnect of ours is retried; a tunnel whose amneziawg-go died stays blocked
+        // until the user disconnects, as before.
+        if let retryAt = tunnel.retryAt, now >= retryAt, killSwitchArmed(tunnel.name) {
+            reconnect(tunnel.name, reason: "reconnect failed before", now: now)
+        }
+        return
+    }
+    guard let current = stats(tunnel.name) else { return }
+    let handshake = current.lastHandshake.map { Date(timeIntervalSince1970: $0) }
+    let session = max(handshake ?? tunnel.since, tunnel.since)
+    if current.rxBytes != tunnel.rx {
+        tunnel.stalledSince = nil
+    } else if current.txBytes != tunnel.tx, now.timeIntervalSince(session) > 180 {
+        tunnel.stalledSince = tunnel.stalledSince ?? now
+    }
+    tunnel.rx = current.rxBytes
+    tunnel.tx = current.txBytes
+    watched = tunnel
+    // A handshake after wake-up or a network change gets time to finish before the tunnel counts as dead.
+    if let stalled = tunnel.stalledSince, now.timeIntervalSince(stalled) >= 30 {
+        let age = handshake.map { "\(Int(now.timeIntervalSince($0))) s ago" } ?? "never"
+        reconnect(tunnel.name, reason: "sending without replies, last handshake \(age)", now: now)
+    }
+}
+
+func reconnect(_ name: String, reason: String, now: Date) {
+    log("\(name): \(reason), reconnecting")
+    do {
+        // The kill switch stays: nothing leaves outside the tunnel in between.
+        try down(name, keepKillSwitch: true)
+        try up(name)
+    } catch {
+        log("reconnect \(name): \(error.localizedDescription)")
+        watched = Watched(name: name, since: now, retryAt: now.addingTimeInterval(30))
+    }
+}
+
+func startWatchdog() {
+    Thread.detachNewThread {
+        while true {
+            sleep(5)
+            operations.lock()
+            checkTunnel()
+            operations.unlock()
+        }
+    }
 }
 
 /// After a reboot or a crash nothing is up, but markers and runtime configs may be left behind.
@@ -480,12 +567,16 @@ func serve() -> Never {
     // Access control is the peer uid check above; the socket itself must be connectable by the user.
     chmod(path, 0o666)
     log("listening on \(path), allowed uid \(allowedUID)")
+    startWatchdog()
 
-    // Requests are handled one by one on purpose: up/down/delete must not interleave.
+    // Requests are handled one by one on purpose: up/down/delete must not interleave, with each
+    // other or with the watchdog.
     while true {
         let client = accept(fd, nil, nil)
         if client < 0 { continue }
+        operations.lock()
         serveConnection(client)
+        operations.unlock()
         close(client)
     }
 }
