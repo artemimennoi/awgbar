@@ -14,5 +14,9 @@ public class GoBackend {
 
     public static native int awgTurnOn(String ifName, int tunFd, String settings);
 
+    // An underlying network came, went or changed. awgcore has its peers hear from it at once;
+    // amneziawg-go ignores it.
+    public static native void awgNetworkChanged(int handle);
+
     public static native String awgVersion();
 }

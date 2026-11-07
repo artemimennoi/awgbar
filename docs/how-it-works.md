@@ -120,7 +120,15 @@ moves to another network, the VPN comes back by itself.
 ## Android
 
 A single-screen Compose app with the `tunnel` module of
-[amneziawg-android](https://github.com/amnezia-vpn/amneziawg-android) (userspace Go backend only).
+[amneziawg-android](https://github.com/amnezia-vpn/amneziawg-android) (userspace backend only).
+The tunnel library is awgcore, our own AmneziaWG core in Rust (`artemimennoi/awgcore`), or
+`amneziawg-go` in a fallback build (`-PawgCore=go`); the Java side is the same for both.
+
+- awgcore protects every UDP socket it opens through `VpnService.protect()` before using it,
+  rebuilt ones included, so a full tunnel never loops its own packets, and rebuilds a socket
+  after any error instead of going deaf. When Android reports another network (Wi-Fi to mobile
+  data, back from Doze), it sends the server a keepalive at once, so traffic comes back without a
+  reconnect. Its log is in logcat under `awgcore` (`adb logcat -s awgcore/<tunnel>`).
 
 - Tunnels live in app-private storage, excluded from cloud backups and from device-to-device
   transfer.

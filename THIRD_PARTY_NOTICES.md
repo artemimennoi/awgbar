@@ -36,7 +36,15 @@ The Linux app links the distribution's Qt (LGPL-3.0) dynamically.
 | Component | Used as | License | Source |
 |---|---|---|---|
 | amneziawg-android `tunnel` module (at `ff15093`) | `android/tunnel`, vendored and trimmed | Apache-2.0 (`android/tunnel/COPYING`) | https://github.com/amnezia-vpn/amneziawg-android |
-| amneziawg-go v3.1.20260814 | `libwg-go.so` inside the APK | MIT | https://github.com/amnezia-vpn/amneziawg-go |
-| Go runtime 1.25.14 (with WireGuard's boottime patch) | compiled into `libwg-go.so` | BSD-3-Clause | https://go.dev |
+| awgcore | `libwg-go.so` inside the APK, the tunnel library (default build) | the author's own, not yet published | https://github.com/artemimennoi/awgcore (private) |
+| amneziawg-go v3.1.20260814 | `libwg-go.so` inside the APK (fallback build, `-PawgCore=go`) | MIT | https://github.com/amnezia-vpn/amneziawg-go |
+| Go runtime 1.25.14 (with WireGuard's boottime patch) | compiled into the fallback's `libwg-go.so` | BSD-3-Clause | https://go.dev |
 | AndroidX, Jetpack Compose, kotlinx.coroutines, 6 Material icons copied into `android/app/.../icons` | app dependencies | Apache-2.0 | https://developer.android.com/jetpack |
 | zxing-android-embedded 4.3.0 (with ZXing core) | QR scanner | Apache-2.0 | https://github.com/journeyapps/zxing-android-embedded |
+
+awgcore's Android library links the Rust crates its `Cargo.lock` pins, vendored in its repository:
+aead, blake2, block-buffer, cfg-if, chacha20, chacha20poly1305, cipher, cmov, crypto-common,
+ctutils, digest, hkdf, hmac, hybrid-array, inout, libc, poly1305, rand_core, typenum,
+universal-hash and zeroize (MIT OR Apache-2.0), fiat-crypto (MIT OR Apache-2.0 OR BSD-1-Clause),
+and curve25519-dalek, x25519-dalek and subtle (BSD-3-Clause). Their license texts are in each
+crate's directory under `vendor/` there.

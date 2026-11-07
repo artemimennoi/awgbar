@@ -69,3 +69,8 @@ JNIEXPORT jstring JNICALL Java_org_amnezia_awg_GoBackend_awgVersion(JNIEnv *env,
 	free(version);
 	return ret;
 }
+
+/* awgcore's network feed; amneziawg-go has nothing to do with it. */
+JNIEXPORT void JNICALL Java_org_amnezia_awg_GoBackend_awgNetworkChanged(JNIEnv *env, jclass c, jint handle)
+{
+}

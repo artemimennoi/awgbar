@@ -52,6 +52,7 @@ public final class GoBackend implements Backend {
     @Nullable private Tunnel currentTunnel;
     private int currentTunnelHandle = -1;
     @Nullable private Thread statusThread;
+    @Nullable private NetworkWatch networkWatch;
     @Nullable private StatusCallback statusCallback;
 
     /**
@@ -62,6 +63,19 @@ public final class GoBackend implements Backend {
     public GoBackend(final Context context) {
         SharedLibraryLoader.loadSharedLibrary(context, "wg-go");
         this.context = context;
+    }
+
+    /**
+     * Called by the awgcore library, on its own threads, for every UDP socket it opens, rebuilt
+     * ones included, before the socket is used: the tunnel's own datagrams must never go into it.
+     */
+    @SuppressWarnings("unused")
+    private static boolean protectSocket(final int fd) {
+        try {
+            return vpnService.get(0, TimeUnit.NANOSECONDS).protect(fd);
+        } catch (final Exception e) {
+            return false;
+        }
     }
 
     /**
@@ -426,8 +440,10 @@ public final class GoBackend implements Backend {
             currentTunnel = tunnel;
             currentConfig = config;
 
+            // amneziawg-go's sockets; awgcore protects its own and returns -1 here.
             service.protect(awgGetSocketV4(currentTunnelHandle));
             service.protect(awgGetSocketV6(currentTunnelHandle));
+            networkWatch = NetworkWatch.start(context, currentTunnelHandle);
 
             launchStatusJob();
         } else {
@@ -436,6 +452,8 @@ public final class GoBackend implements Backend {
                 return;
             }
             stopStatusJob();
+            NetworkWatch.stop(networkWatch);
+            networkWatch = null;
             int handleToClose = currentTunnelHandle;
             currentTunnel = null;
             currentTunnelHandle = -1;
@@ -507,6 +525,8 @@ public final class GoBackend implements Backend {
             if (owner != null) {
                 final Tunnel tunnel = owner.currentTunnel;
                 if (tunnel != null) {
+                    NetworkWatch.stop(owner.networkWatch);
+                    owner.networkWatch = null;
                     if (owner.currentTunnelHandle != -1)
                         awgTurnOff(owner.currentTunnelHandle);
                     owner.currentTunnel = null;

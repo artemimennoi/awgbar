@@ -55,17 +55,24 @@ real Linux machine or VM to try: install the package there and drive the helper 
 
 ## Android
 
-Needs JDK 17, the Android SDK (platform 36, build-tools 36), NDK 27.2.12479018 and CMake 3.22.1.
-The Go toolchain for the tunnel library (with WireGuard's boottime patch) is downloaded into
-`~/.gradle/caches/golang` on the first build.
+Needs JDK 17, the Android SDK (platform 36, build-tools 36), NDK 27.2.12479018 and CMake 3.22.1,
+plus Rust through rustup with the Android standard library, and GitHub credentials that can read
+`artemimennoi/awgcore` (private). The tunnel library is awgcore at the revision
+`tunnel/tools/awgcore/Makefile` pins (`AWGCORE_REV`), fetched into `~/.gradle/caches/awgcore` and
+built offline from its vendored crates with the toolchain its `rust-toolchain.toml` pins.
 
 ```bash
 brew install openjdk@17 android-commandlinetools
 sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+rustup target add aarch64-linux-android --toolchain 1.99.1   # the toolchain awgcore pins
 cd android
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17 ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 ./gradlew :app:testDebugUnitTest assembleDebug
 ```
+
+`-PawgCore=go` builds the amneziawg-go fallback instead: no Rust then, and the Go toolchain (with
+WireGuard's boottime patch) is downloaded into `~/.gradle/caches/golang` on the first build.
+`-PawgcoreSrc=$HOME/projects/awgcore` builds awgcore from a local checkout.
 
 The APK is `app/build/outputs/apk/debug/app-debug.apk`, for 64-bit ARM only (`abiFilters` in
 `app/build.gradle.kts`; the Android emulator on an Apple Silicon Mac is 64-bit ARM too). The debug
