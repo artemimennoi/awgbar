@@ -50,7 +50,13 @@ LaunchDaemon) runs `amneziawg-go` and `awg-quick`, all built from pinned sources
   The install script itself runs once from the app bundle with your password, like any admin
   prompt: only press Install Helper for an app from the releases.
 - Bypass subnets ride awg-quick's server routes: pinned to the current gateway, moved by its
-  route monitor when the network changes, removed on disconnect.
+  route monitor when the network changes, removed on disconnect. The monitor also checks where
+  each of these routes actually leads, so a route that went away with its interface (Ethernet
+  unplugged while Wi-Fi is on the same network) is put back instead of sending the server's
+  traffic into the tunnel.
+- A tunnel that looks connected but carries nothing is reconnected, as on Linux: traffic goes in,
+  nothing comes back, and the latest handshake is over three minutes old. The kill switch stays
+  on in between. An idle tunnel is left alone.
 - The kill switch is a pf anchor, `com.apple/AWGBar`, which the stock `/etc/pf.conf` already
   evaluates, so the system ruleset is never rewritten. pf is enabled with a reference token that
   is given back on disconnect. Its rules are stateless, so connections already open (localhost

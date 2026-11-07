@@ -30,7 +30,25 @@
  }
  
  up_if() {
-@@ -213,6 +214,11 @@
+@@ -190,12 +191,15 @@
+ }
+ 
+ collect_gateways() {
+-	local destination gateway
++	local destination gateway netif
+ 
+ 	GATEWAY4=""
+-	while read -r destination gateway _; do
++	GATEWAY4_IF=""
++	while read -r destination gateway _ netif _; do
+ 		[[ $destination == default && $gateway != "link#"* ]] || continue
+ 		GATEWAY4="$gateway"
++		# AWGBar: and its interface, see set_endpoint_direct_route.
++		GATEWAY4_IF="$netif"
+ 		break
+ 	done < <(netstat -nr -f inet)
+ 
+@@ -213,6 +217,11 @@
  		[[ $endpoint =~ ^\[?([a-z0-9:.]+)\]?:[0-9]+$ ]] || continue
  		ENDPOINTS+=( "${BASH_REMATCH[1]}" )
  	done < <(wg show "$REAL_INTERFACE" endpoints)
@@ -42,3 +60,51 @@
  }
  
  declare -A SERVICE_DNS
+@@ -240,15 +249,35 @@
+ 	done
+ }
+ 
++# AWGBar: true when a pinned destination no longer leaves through a physical interface: its
++# route is gone and the tunnel's own routes catch the traffic.
++route_lost() {
++	local family=-inet line iface=""
++	[[ $1 == *:* ]] && family=-inet6
++	while read -r line; do
++		[[ $line == interface:* ]] && iface="${line#interface: }"
++	done < <(route -n get "$family" "$1" 2>/dev/null)
++	[[ -z $iface || $iface == "$REAL_INTERFACE" ]]
++}
++
+ set_endpoint_direct_route() {
+-	local old_endpoints endpoint old_gateway4 old_gateway6 remove_all_old=0 added=( )
++	local old_endpoints endpoint old_gateway4 old_gateway4_if old_gateway6 remove_all_old=0 added=( )
+ 	old_endpoints=( "${ENDPOINTS[@]}" )
+ 	old_gateway4="$GATEWAY4"
++	old_gateway4_if="$GATEWAY4_IF"
+ 	old_gateway6="$GATEWAY6"
+ 	collect_gateways
+ 	collect_endpoints
+ 
+ 	[[ $old_gateway4 != "$GATEWAY4" || $old_gateway6 != "$GATEWAY6" ]] && remove_all_old=1
++	# AWGBar: the gateway's address alone misses two changes that take the pinned routes away:
++	# the same gateway behind another interface (Ethernet unplugged, Wi-Fi on the same network)
++	# and a route deleted while the gateway stays. The server's packets would then loop into the
++	# tunnel, which looks connected but carries nothing until a reconnect.
++	[[ $old_gateway4_if != "$GATEWAY4_IF" ]] && remove_all_old=1
++	for endpoint in "${old_endpoints[@]}"; do
++		route_lost "$endpoint" && remove_all_old=1
++	done
+ 
+ 	if [[ $remove_all_old -eq 1 ]]; then
+ 		for endpoint in "${ENDPOINTS[@]}"; do
+@@ -323,6 +352,10 @@
+ monitor_daemon() {
+ 	echo "[+] Backgrounding route monitor" >&2
+ 	(trap 'del_routes; del_dns; exit 0' INT TERM EXIT
++	# AWGBar: under set -e any failing command would end the monitor, and its EXIT trap would take
++	# the server route with it while the tunnel stays up (networksetup -getdnsservers fails for a
++	# service that went away, for one). Only a gone interface or a gone route monitor end it now.
++	set +e
+ 	exec >/dev/null 2>&1
+ 	exec 19< <(exec route -n monitor)
+ 	local event bpid=$BASHPID mpid=$!
