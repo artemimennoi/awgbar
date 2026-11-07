@@ -113,28 +113,54 @@ dist: app
 	rm -rf $(DIST)/src
 	@ls -la $(DIST)
 
-# Everything for the GitHub release v$(VERSION): the macOS DMG and sources, the Linux packages
-# (qt5/qt6, amd64/arm64) and the Android APK (arm64), with SHA256SUMS over all of them signed by the
-# release key (scripts/sign.swift); the macOS updater installs nothing without that signature.
-# Files are named awgbar-<version>-<platform>-..., so the release lists them by platform; the DMG
-# keeps its -macos-arm64.dmg ending, which installed apps look for. RELEASE_NOTES gets the
-# download table that opens the release's description (scripts/release-download.md).
-release: dist
+# The GitHub release v$(VERSION), from the files .github/workflows/release.yml built for that tag
+# (or for the run RUN=<id>): the macOS DMG and sources, the Linux packages (qt5/qt6, amd64) and the
+# Android APK (arm64), all unsigned. The keys stay on this Mac: the APK is signed here with the
+# release keystore (Android installs an update only over the same key), and SHA256SUMS over all
+# the files with the release key (scripts/sign.swift), checked against the public key installed
+# apps carry; the macOS updater installs nothing without that signature. Files are named
+# awgbar-<version>-<platform>-..., so the release lists them by platform; the DMG keeps its
+# -macos-arm64.dmg ending, which installed apps look for. RELEASE_NOTES gets the download table
+# that opens the release's description (scripts/release-download.md).
+UNSIGNED   := $(BUILD)/unsigned
+KEYSTORE   ?= $(HOME)/.android/awgbar-release.properties
+BUILD_TOOLS ?= $(ANDROID_HOME)/build-tools/36.0.0
+# SHA-256 of the certificate every released APK is signed with.
+APK_CERT   := 8cf5d0575d11af3ac3945a1725cee1a620c0722c2cc0765a04d8a9fbf4c32f3a
+APK        := awgbar-$(VERSION)-android.apk
+
+release:
 	@test -f "$(SIGNING_KEY)" || { echo "no signing key at $(SIGNING_KEY)"; exit 1; }
-	rm -rf $(RELEASE) && mkdir -p $(RELEASE)
-	cp $(DIST)/awgbar-$(VERSION)-macos-arm64.dmg $(DIST)/awgbar-$(VERSION)-third-party-sources.tar.gz $(RELEASE)/
-	$(MAKE) -C linux deb ARCH=amd64
-	$(MAKE) -C linux deb ARCH=arm64
-	for qt in qt5 qt6; do for arch in amd64 arm64; do \
-		cp linux/build/dist/awgbar_$(VERSION)_$${qt}_$$arch.deb $(RELEASE)/awgbar-$(VERSION)-linux-$$qt-$$arch.deb || exit 1; \
-	done; done
-	cd android && JAVA_HOME=$(JAVA_HOME) ANDROID_HOME=$(ANDROID_HOME) ./gradlew -q assembleRelease
-	# One APK, 64-bit ARM only (android/app/build.gradle.kts).
-	cp android/app/build/outputs/apk/release/app-release.apk $(RELEASE)/awgbar-$(VERSION)-android.apk
+	@test -f "$(KEYSTORE)" || { echo "no keystore properties at $(KEYSTORE)"; exit 1; }
+	rm -rf $(RELEASE) $(UNSIGNED) && mkdir -p $(RELEASE)
+	# The newest successful run for the tagged commit; pull request runs build a merge of it instead.
+	run="$(RUN)"; \
+	if [ -z "$$run" ]; then \
+		commit=$$(git rev-parse -q --verify "v$(VERSION)^{commit}") || { echo "no tag v$(VERSION): push it to build the release"; exit 1; }; \
+		run=$$(gh run list --workflow release.yml --commit $$commit --status success --json databaseId,event \
+			--jq '[.[] | select(.event != "pull_request")][0].databaseId // empty'); \
+		[ -n "$$run" ] || { echo "no successful release.yml run for v$(VERSION) ($$commit) yet"; exit 1; }; \
+	fi; \
+	gh run view $$run --json event,headBranch,headSha,url --jq '"files of \(.url) (\(.event), \(.headBranch) \(.headSha))"' && \
+	gh run download $$run --name awgbar-$(VERSION) --dir $(UNSIGNED)
+	cp $(UNSIGNED)/*.dmg $(UNSIGNED)/*.tar.gz $(UNSIGNED)/*.deb $(RELEASE)/
+	$(BUILD_TOOLS)/zipalign -f -P 16 4 $(UNSIGNED)/$(APK) $(UNSIGNED)/aligned.apk
+	# APK Signature Scheme v2 only, as Gradle signed the releases before.
+	prop() { sed -n "s/^$$1=//p" "$(KEYSTORE)"; }; \
+	STORE_PASS=$$(prop storePassword) KEY_PASS=$$(prop keyPassword) JAVA_HOME=$(JAVA_HOME) \
+	$(BUILD_TOOLS)/apksigner sign --ks "$$(prop storeFile)" --ks-key-alias "$$(prop keyAlias)" \
+		--ks-pass env:STORE_PASS --key-pass env:KEY_PASS --v3-signing-enabled false --v4-signing-enabled false \
+		--out $(RELEASE)/$(APK) $(UNSIGNED)/aligned.apk
+	JAVA_HOME=$(JAVA_HOME) $(BUILD_TOOLS)/apksigner verify --print-certs $(RELEASE)/$(APK) | grep -q "certificate SHA-256 digest: $(APK_CERT)" \
+		|| { echo "$(APK) isn't signed with the release certificate $(APK_CERT)"; exit 1; }
 	cd $(RELEASE) && shasum -a 256 *.dmg *.tar.gz *.deb *.apk > SHA256SUMS
 	swift scripts/sign.swift sign "$(SIGNING_KEY)" $(RELEASE)/SHA256SUMS > $(RELEASE)/SHA256SUMS.sig
+	swift scripts/sign.swift verify "$$(sed -nE 's/.*signingKey = "([^"]+)".*/\1/p' Sources/AWGBar/Updater.swift)" \
+		$(RELEASE)/SHA256SUMS $(RELEASE)/SHA256SUMS.sig
 	sed 's/@VERSION@/$(VERSION)/g' scripts/release-download.md > $(RELEASE_NOTES)
 	@ls -la $(RELEASE)
+	@echo "Add what changed to $(RELEASE_NOTES), then publish:"
+	@echo '  gh release create v$(VERSION) $(RELEASE)/* --verify-tag --prerelease --title "AWG Bar $(VERSION) beta" --notes-file $(RELEASE_NOTES)'
 
 uninstall:
 	sudo bash Resources/uninstall-helper.sh

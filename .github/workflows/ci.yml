@@ -1,5 +1,5 @@
 # Builds and tests all three clients on every pull request and push to main.
-# Releases are still built and signed locally (`make release`): the signing keys never leave the Mac.
+# Releases are built by release.yml and signed on the Mac (`make release`): the keys never leave it.
 name: CI
 
 on:

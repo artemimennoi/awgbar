@@ -4,6 +4,8 @@
 //   swift scripts/sign.swift keygen <key file>        new key (0600), prints the public key
 //   swift scripts/sign.swift sign <key file> <file>   prints the signature of <file>, base64
 //   swift scripts/sign.swift public <key file>        prints the public key, base64
+//   swift scripts/sign.swift verify <public key> <file> <signature file>
+//                                                     checks the signature as the updater does
 //
 // The key file holds the raw private key in base64. Keep it outside the repository and back it
 // up: without it no update can be signed, and a new key needs an app release with the new public key.
@@ -42,6 +44,18 @@ case ("sign", 3):
     print(signature.base64EncodedString())
 case ("public", 2):
     print(loadKey(args[args.startIndex + 1]).publicKey.rawRepresentation.base64EncodedString())
+case ("verify", 4):
+    let (publicKey, path, signaturePath) = (args[args.startIndex + 1], args[args.startIndex + 2], args[args.startIndex + 3])
+    guard let raw = Data(base64Encoded: publicKey), let key = try? Curve25519.Signing.PublicKey(rawRepresentation: raw) else {
+        fail("not a public key: \(publicKey)")
+    }
+    guard let data = FileManager.default.contents(atPath: path) else { fail("cannot read \(path)") }
+    guard let text = try? String(contentsOfFile: signaturePath, encoding: .utf8),
+          let signature = Data(base64Encoded: text.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+        fail("cannot read the signature from \(signaturePath)")
+    }
+    guard key.isValidSignature(signature, for: data) else { fail("\(signaturePath) is not a valid signature of \(path)") }
+    print("\(path): good signature")
 default:
-    fail("usage: sign.swift keygen <key> | sign <key> <file> | public <key>")
+    fail("usage: sign.swift keygen <key> | sign <key> <file> | public <key> | verify <public key> <file> <signature>")
 }

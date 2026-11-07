@@ -2,7 +2,7 @@
 # the oldest distribution each package targets). Needs Go and Docker.
 #
 #   make deb             both packages for ARCH (amd64 by default)
-#   make deb ARCH=arm64
+#   make deb ARCH=arm64  for ARM machines and VMs; releases have amd64 only
 #   make test            helper unit tests, run in a Linux container
 #
 # Two packages per architecture, so that KDE's Breeze style applies (it exists only for the
