@@ -1,4 +1,5 @@
-// awgbar-helper is the root service behind AWG Bar on Linux. It runs amneziawg-go in-process,
+// awgbar-helper is the root service behind AWG Bar on Linux. It runs the userspace tunnel (awgcore
+// as a process of its own, or amneziawg-go in-process in the fallback package, see engine.go),
 // owns the routing rules and DNS while a tunnel is up, and watches sleep and network changes so
 // the tunnel comes back on its own. The app talks to it over /run/awgbar/helper.sock.
 package main
