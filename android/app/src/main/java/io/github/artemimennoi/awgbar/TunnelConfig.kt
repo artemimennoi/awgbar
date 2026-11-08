@@ -46,12 +46,17 @@ class TunnelConfig private constructor(
         configDns.isEmpty() && peers.any { p -> allowedIps(p).any { it.prefix == 0 && !it.isV6 } } && addresses.any { !it.isV6 }
 
     /**
-     * The backend config: the fallback DNS if the config names none, and bypass subnets cut out of
+     * The backend config: the fallback DNS if the config names none, bypass subnets cut out of
      * every peer's AllowedIPs, except the tunnel's name servers (AmneziaDNS 172.29.172.254 inside
-     * a bypassed 172.16.0.0/12 still goes through the tunnel).
+     * a bypassed 172.16.0.0/12 still goes through the tunnel), and bypass apps left out of the VPN.
      */
-    fun toBackendConfig(bypass: List<Cidr>): Config {
-        val iface = if (usesFallbackDns) interfaceEntries + ("DNS" to FALLBACK_DNS.joinToString(", ")) else interfaceEntries
+    fun toBackendConfig(bypass: List<Cidr>, bypassApps: Collection<String> = emptyList()): Config {
+        val apps = bypassApps.filter { PACKAGE.matches(it) }.distinct().sorted()
+        val iface = interfaceEntries +
+            listOfNotNull(
+                ("DNS" to FALLBACK_DNS.joinToString(", ")).takeIf { usesFallbackDns },
+                ("ExcludedApplications" to apps.joinToString(", ")).takeIf { apps.isNotEmpty() },
+            )
         val servers = (if (usesFallbackDns) FALLBACK_DNS else configDns).mapNotNull { Cidr.parse(it) }
         val rewritten = peers.map { peer ->
             if (bypass.isEmpty()) return@map peer
@@ -66,6 +71,9 @@ class TunnelConfig private constructor(
 
     companion object {
         val FALLBACK_DNS = listOf("1.1.1.1", "1.0.0.1")
+
+        /** An Android package name, so nothing else lands in the backend config's app list. */
+        private val PACKAGE = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+")
 
         private val interfaceKeys = listOf(
             "Address", "DNS", "MTU", "PrivateKey", "ListenPort", "Jc", "Jmin", "Jmax", "S1", "S2", "S3", "S4",

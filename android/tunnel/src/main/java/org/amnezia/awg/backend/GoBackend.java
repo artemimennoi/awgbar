@@ -304,8 +304,10 @@ public final class GoBackend implements Backend {
         if (state == State.UP) {
             final Config originalConfig = currentConfig;
             final Tunnel originalTunnel = currentTunnel;
+            // Keep the VpnService: the next tunnel comes up on it at once, and a service stopped
+            // here would run onDestroy after that and take the new tunnel down with it.
             if (currentTunnel != null)
-                setStateInternal(currentTunnel, null, State.DOWN);
+                setStateInternal(currentTunnel, null, State.DOWN, false);
             try {
                 setStateInternal(tunnel, config, state);
             } catch (final Exception e) {
@@ -321,6 +323,11 @@ public final class GoBackend implements Backend {
 
     private void setStateInternal(final Tunnel tunnel, @Nullable final Config config, final State state)
             throws Exception {
+        setStateInternal(tunnel, config, state, true);
+    }
+
+    private void setStateInternal(final Tunnel tunnel, @Nullable final Config config, final State state,
+            final boolean stopService) throws Exception {
         Log.i(TAG, "Bringing tunnel " + tunnel.getName() + ' ' + state);
 
         if (state == State.UP) {
@@ -441,9 +448,11 @@ public final class GoBackend implements Backend {
             currentTunnelHandle = -1;
             currentConfig = null;
             awgTurnOff(handleToClose);
-            try {
-                vpnService.get(0, TimeUnit.NANOSECONDS).stopSelf();
-            } catch (final TimeoutException ignored) { }
+            if (stopService) {
+                try {
+                    vpnService.get(0, TimeUnit.NANOSECONDS).stopSelf();
+                } catch (final TimeoutException ignored) { }
+            }
         }
 
         tunnel.onStateChange(state);

@@ -56,6 +56,20 @@ class TunnelConfigTest {
         assertFalse(allowed.any { it.startsWith("172.16.0.0/") })
     }
 
+    @Test fun bypassAppsLeaveTheVpn() {
+        val apps = listOf("ru.sberbankmobile", "org.telegram.messenger", "ru.sberbankmobile", "not a package", "x, y.z")
+        val backend = TunnelConfig.parse(conf).toBackendConfig(emptyList(), apps)
+        assertEquals(setOf("org.telegram.messenger", "ru.sberbankmobile"), backend.`interface`.excludedApplications)
+        assertTrue(backend.peers[0].allowedIps.map { it.toString() }.contains("0.0.0.0/0"))
+        assertTrue(TunnelConfig.parse(conf).toBackendConfig(emptyList()).`interface`.excludedApplications.isEmpty())
+    }
+
+    @Test fun importedAppListsAreDropped() {
+        val cfg = TunnelConfig.parse(conf.replace("Jc = 4", "Jc = 4\nExcludedApplications = com.example.app"))
+        assertTrue("ExcludedApplications" in cfg.dropped)
+        assertTrue(cfg.toBackendConfig(emptyList()).`interface`.excludedApplications.isEmpty())
+    }
+
     @Test fun fullTunnelSurvivesBypass() {
         assertTrue(TunnelConfig.parse(conf).isFullTunnel)
         assertFalse(TunnelConfig.parse(conf.replace("AllowedIPs = 0.0.0.0/0", "AllowedIPs = 10.0.0.0/8")).isFullTunnel)

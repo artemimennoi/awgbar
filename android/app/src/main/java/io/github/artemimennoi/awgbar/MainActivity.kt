@@ -94,6 +94,8 @@ private fun MainScreen(
     var renaming by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<String?>(null) }
     var bypass by remember { mutableStateOf(Cidr.parseList(Vpn.store.bypass).first.map { it.toString() }) }
+    var bypassApps by remember { mutableStateOf(Vpn.store.bypassApps) }
+    val bypassAppLabels = remember(bypassApps) { bypassApps.map { Apps.label(context, it) }.sortedWith(Apps.byName) }
     var scanning by remember { mutableStateOf(false) }
     var notification by remember { mutableStateOf(Vpn.store.showNotification) }
     var settings by remember { mutableStateOf(false) }
@@ -164,12 +166,14 @@ private fun MainScreen(
         } else Vpn.disconnect()
     }
 
-    /** An unchanged list doesn't reconnect the tunnel. */
-    fun saveBypass(list: List<String>) {
+    /** Unchanged lists don't reconnect the tunnel. */
+    fun saveBypass(list: List<String>, apps: Set<String>) {
         editingBypass = false
-        if (list == bypass) return
+        if (list == bypass && apps == bypassApps) return
         bypass = list
+        bypassApps = apps
         Vpn.store.bypass = list.joinToString(", ")
+        Vpn.store.bypassApps = apps
         Vpn.reconnectIfActive()
     }
 
@@ -216,7 +220,7 @@ private fun MainScreen(
                     )
                 }
             }
-            BypassRow(bypass, enabled = !state.busy) { editingBypass = true }
+            BypassRow(bypass + bypassAppLabels, enabled = !state.busy) { editingBypass = true }
             InfoRow(
                 error?.text, notice?.text, onDismissError = { error = null },
                 connected = state.active != null, rx = state.rx, tx = state.tx, host = shown?.let { Vpn.endpointHost(it) },
@@ -249,7 +253,7 @@ private fun MainScreen(
         )
     }
     if (editingBypass) {
-        BypassDialog(bypass, onDismiss = { editingBypass = false }, onSave = ::saveBypass)
+        BypassDialog(bypass, bypassApps, onDismiss = { editingBypass = false }, onSave = ::saveBypass)
     }
     if (scanning) {
         QrScanner(

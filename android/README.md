@@ -1,7 +1,8 @@
 # AWG Bar for Android
 
 The Android client: `app/` is the app (Kotlin, Compose: `KeyImport` for vpn:// / JSON / .conf,
-`TunnelConfig` for the key allowlist and bypass subnets, `Vpn` for the one backend, `Tile`,
+`TunnelConfig` for the key allowlist and bypass subnets and apps, `Apps` for the app list, `Vpn`
+for the one backend, `Tile`,
 `MainActivity`), `tunnel/` the `tunnel` module of
 [amneziawg-android](https://github.com/amnezia-vpn/amneziawg-android) at `ff15093` (Apache-2.0,
 see `tunnel/COPYING`) with amneziawg-go v3.1, cut down to the userspace Go backend.

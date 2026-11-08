@@ -126,6 +126,11 @@ A single-screen Compose app with the `tunnel` module of
   transfer.
 - Bypass subnets are cut out of the peers' AllowedIPs. A one-peer full-tunnel config keeps
   blocking the family it doesn't route (IPv6 for a v4-only config) either way.
+- Bypass apps are left out of the VPN (`addDisallowedApplication`), for every tunnel. The list
+  offers apps with a launcher icon, which the manifest's `<queries>` makes visible without
+  `QUERY_ALL_PACKAGES`; an app removed since is skipped at connect. Under "Block connections
+  without VPN" Android gives them no network at all. `ExcludedApplications` in an imported config
+  is dropped like other unknown keys, so a key from elsewhere can't take apps out of the tunnel.
 - Keys from links and other apps are imported only after you confirm. The quick settings tile and
   the notification's Disconnect ask to unlock the phone; the lock screen shows only that the VPN
   is on.

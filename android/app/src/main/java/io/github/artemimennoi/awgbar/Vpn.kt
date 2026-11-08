@@ -66,8 +66,10 @@ object Vpn {
         scope.launch {
             try {
                 val bypass = Cidr.parseList(store.bypass).first
+                // VpnService refuses a package that isn't installed, so a removed app can't block Connect.
+                val apps = store.bypassApps.filter { Apps.isInstalled(app, it) }
                 val stored = store.read(name)
-                val config = stored.toBackendConfig(bypass)
+                val config = stored.toBackendConfig(bypass, apps)
                 val tunnel = AppTunnel(name, stored.isFullTunnel)
                 current?.let { if (it.name != name) backend.setState(it, Tunnel.State.DOWN, null) }
                 backend.setState(tunnel, Tunnel.State.UP, config)
@@ -93,7 +95,7 @@ object Vpn {
         }
     }
 
-    /** Reconnects so a changed bypass list or config takes effect. */
+    /** Reconnects so a changed bypass list, bypass app or config takes effect. */
     fun reconnectIfActive() {
         state.value.active?.let { connect(it) }
     }

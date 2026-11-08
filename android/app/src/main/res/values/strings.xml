@@ -54,4 +54,9 @@
     <string name="from_clipboard_desc">A copied vpn://… key or config</string>
     <string name="scan_qr_desc">From AmneziaVPN or another screen</string>
     <string name="from_file_desc">A .conf or AmneziaVPN backup</string>
+    <string name="bypass_apps">Apps</string>
+    <string name="bypass_apps_none">None</string>
+    <string name="bypass_apps_hint">Checked apps go around the tunnel; an active tunnel reconnects on Apply. With \"Block connections without VPN\" on, they get no internet.</string>
+    <string name="search">Search</string>
+    <string name="back">Back</string>
 </resources>
