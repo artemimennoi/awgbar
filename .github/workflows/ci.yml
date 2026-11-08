@@ -96,4 +96,5 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: gradle-${{ hashFiles('android/**/*.gradle.kts', 'android/gradle/libs.versions.toml', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/tunnel/tools/libwg-go/Makefile') }}
-      - run: ./gradlew --no-daemon :app:testDebugUnitTest assembleDebug
+      # The amneziawg-go fallback: awgcore's repository is private and CI has no credentials for it.
+      - run: ./gradlew --no-daemon -PawgCore=go :app:testDebugUnitTest assembleDebug

@@ -5,13 +5,19 @@ plugins {
 // The Go library hard-codes its UAPI socket path under the app's data directory.
 val appId = "io.github.artemimennoi.awgbar"
 
+// The tunnel library: awgcore (Rust, the default) or the amneziawg-go fallback, -PawgCore=go.
+// -PawgcoreSrc=<checkout> builds awgcore from a local checkout instead of the pinned revision.
+val awgCore = providers.gradleProperty("awgCore").getOrElse("awgcore")
+val awgcoreSrc = providers.gradleProperty("awgcoreSrc").getOrElse("")
+require(awgCore == "awgcore" || awgCore == "go") { "awgCore must be awgcore or go, not $awgCore" }
+
 android {
     namespace = "org.amnezia.awg.tunnel"
     compileSdk = 36
     ndkVersion = "27.2.12479018"
     defaultConfig {
         minSdk = 29
-        // The app ships for 64-bit ARM only; building the Go library for other ABIs is wasted time.
+        // The app ships for 64-bit ARM only; building the library for other ABIs is wasted time.
         ndk { abiFilters += "arm64-v8a" }
     }
     compileOptions {
@@ -26,7 +32,11 @@ android {
             externalNativeBuild {
                 cmake {
                     targets("libwg-go.so")
-                    arguments("-DGRADLE_USER_HOME=${project.gradle.gradleUserHomeDir}")
+                    arguments(
+                        "-DGRADLE_USER_HOME=${project.gradle.gradleUserHomeDir}",
+                        "-DAWG_CORE=$awgCore",
+                        "-DAWGCORE_SRC=$awgcoreSrc",
+                    )
                 }
             }
         }
