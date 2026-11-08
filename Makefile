@@ -114,7 +114,7 @@ dist: app
 	@ls -la $(DIST)
 
 # Everything for the GitHub release v$(VERSION): the macOS DMG and sources, the Linux packages
-# (qt5/qt6, amd64/arm64) and the Android APK (arm64), with SHA256SUMS over all of them signed by the
+# (qt5/qt6, amd64 only) and the Android APK (arm64), with SHA256SUMS over all of them signed by the
 # release key (scripts/sign.swift); the macOS updater installs nothing without that signature.
 # Files are named awgbar-<version>-<platform>-..., so the release lists them by platform; the DMG
 # keeps its -macos-arm64.dmg ending, which installed apps look for. RELEASE_NOTES gets the
@@ -123,11 +123,10 @@ release: dist
 	@test -f "$(SIGNING_KEY)" || { echo "no signing key at $(SIGNING_KEY)"; exit 1; }
 	rm -rf $(RELEASE) && mkdir -p $(RELEASE)
 	cp $(DIST)/awgbar-$(VERSION)-macos-arm64.dmg $(DIST)/awgbar-$(VERSION)-third-party-sources.tar.gz $(RELEASE)/
-	$(MAKE) -C linux deb ARCH=amd64
-	$(MAKE) -C linux deb ARCH=arm64
-	for qt in qt5 qt6; do for arch in amd64 arm64; do \
-		cp linux/build/dist/awgbar_$(VERSION)_$${qt}_$$arch.deb $(RELEASE)/awgbar-$(VERSION)-linux-$$qt-$$arch.deb || exit 1; \
-	done; done
+	$(MAKE) -C linux deb
+	for qt in qt5 qt6; do \
+		cp linux/build/dist/awgbar_$(VERSION)_$${qt}_amd64.deb $(RELEASE)/awgbar-$(VERSION)-linux-$$qt-amd64.deb || exit 1; \
+	done
 	cd android && JAVA_HOME=$(JAVA_HOME) ANDROID_HOME=$(ANDROID_HOME) ./gradlew -q assembleRelease
 	# One APK, 64-bit ARM only (android/app/build.gradle.kts).
 	cp android/app/build/outputs/apk/release/app-release.apk $(RELEASE)/awgbar-$(VERSION)-android.apk

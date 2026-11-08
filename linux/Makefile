@@ -2,8 +2,7 @@
 # (C++/Qt), the last two built in a container of the oldest distribution the packages target.
 # Needs Go and Docker, and GitHub credentials that can read artemimennoi/awgcore (private).
 #
-#   make deb             both packages for ARCH (amd64 by default)
-#   make deb ARCH=arm64
+#   make deb             both packages, amd64 (the only Linux architecture shipped)
 #   make deb USERSPACE=amneziawg-go     the fallback: amneziawg-go in the helper, no awgcore
 #   make test            helper unit tests, run in a Linux container
 #
@@ -14,6 +13,9 @@
 
 VERSION := $(shell cat ../VERSION)
 ARCH    ?= amd64
+ifneq ($(ARCH),amd64)
+$(error Linux packages are amd64 only)
+endif
 BUILD   := build
 DIST    := $(BUILD)/dist
 # The package's version: VERSION, unless a local build gives its own (one for testers that has

@@ -47,7 +47,6 @@ runs under both (its repository pins the Rust toolchain, which the container dow
 
 ```bash
 make -C linux deb              # linux/build/dist/awgbar_<version>_qt{5,6}_amd64.deb
-make -C linux deb ARCH=arm64
 make -C linux test             # helper unit tests in a container
 ```
 
