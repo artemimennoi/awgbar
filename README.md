@@ -51,7 +51,8 @@ outside Play (from 2026–2027 depending on the country); `adb install` keeps wo
   disconnected. On macOS and Linux quitting the app disconnects.
 - **Bypass**: subnets that go through your normal network instead, like
   `10.*, 192.168.0.0/16, fd00::/8`. On macOS and Linux local networks stay reachable anyway; on
-  Android add them here to reach a printer or a NAS.
+  Android add them here to reach a printer or a NAS. On Android Bypass also takes apps: their
+  traffic skips the VPN (with "Block connections without VPN" on, they have no internet).
 - **Kill switch**: while connected with a config that sends all traffic into the tunnel, nothing
   else gets out, apart from local networks and Bypass subnets. If the tunnel breaks, traffic
   stays blocked until it comes back or you disconnect. Other VPNs (Tailscale and the like) can't

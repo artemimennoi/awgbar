@@ -35,6 +35,11 @@ class TunnelStore(context: Context) {
         get() = prefs.getString("bypass", "") ?: ""
         set(value) = prefs.edit().putString("bypass", value).apply()
 
+    /** Package names of the apps whose traffic goes around the tunnel. */
+    var bypassApps: Set<String>
+        get() = prefs.getStringSet("bypassApps", null).orEmpty().toSortedSet()
+        set(value) = prefs.edit().putStringSet("bypassApps", value.toSet()).apply()
+
     var showNotification: Boolean
         get() = prefs.getBoolean("notification", false)
         set(value) = prefs.edit().putBoolean("notification", value).apply()

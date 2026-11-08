@@ -13,10 +13,14 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -24,12 +28,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.*
@@ -40,10 +47,16 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
@@ -53,7 +66,14 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.graphics.drawable.toBitmap
+import androidx.core.view.WindowCompat
 import io.github.artemimennoi.awgbar.icons.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // The screen has the Mac menu's layout, block by block: header, power button, tunnels, "Bypass",
 // one info line, two buttons at the bottom. What they're made of is Material, so the app is
@@ -241,7 +261,7 @@ private fun ImportButton(icon: ImageVector, text: Int, onClick: () -> Unit) {
     }
 }
 
-/** "Bypass" and the subnets that go around the tunnel, on one line; a tap opens [BypassDialog]. */
+/** "Bypass" and the subnets and apps that go around the tunnel, on one line; a tap opens [BypassDialog]. */
 @Composable
 fun BypassRow(subnets: List<String>, enabled: Boolean, onClick: () -> Unit) {
     Surface(
@@ -261,15 +281,22 @@ fun BypassRow(subnets: List<String>, enabled: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Edits the bypass list, checking it as you type; Apply saves it and reconnects an active tunnel. */
+/**
+ * Edits the bypass subnets, checking them as you type, and the bypass apps in [AppPicker]; Apply
+ * saves both and reconnects an active tunnel.
+ */
 @Composable
-fun BypassDialog(subnets: List<String>, onDismiss: () -> Unit, onSave: (List<String>) -> Unit) {
+fun BypassDialog(subnets: List<String>, apps: Set<String>, onDismiss: () -> Unit, onSave: (List<String>, Set<String>) -> Unit) {
     val initial = subnets.joinToString(", ")
     var text by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
     val (parsed, invalid) = Cidr.parseList(text.text)
     val focus = remember { FocusRequester() }
+    var chosen by remember { mutableStateOf(apps) }
+    var picking by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val labels = remember(chosen) { chosen.map { Apps.label(context, it) }.sortedWith(Apps.byName) }
     fun save() {
-        if (invalid.isEmpty()) onSave(parsed.map { it.toString() }.distinct())
+        if (invalid.isEmpty()) onSave(parsed.map { it.toString() }.distinct(), chosen)
     }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -289,12 +316,124 @@ fun BypassDialog(subnets: List<String>, onDismiss: () -> Unit, onSave: (List<Str
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { save() }),
                 )
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    onClick = { picking = true }, shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.bypass_apps), style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                labels.joinToString(", ").ifEmpty { stringResource(R.string.bypass_apps_none) },
+                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         },
         confirmButton = { TextButton(::save, enabled = invalid.isEmpty()) { Text(stringResource(R.string.apply)) } },
         dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
     LaunchedEffect(Unit) { focus.requestFocus() }
+    if (picking) AppPicker(chosen, onChange = { chosen = it }, onDismiss = { picking = false })
+}
+
+/**
+ * The phone's apps, full screen, with a search field: a checked app goes around the tunnel. What
+ * was checked when the list opened comes first and stays put, so rows don't jump on a tap.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppPicker(selected: Set<String>, onChange: (Set<String>) -> Unit, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val initial = remember { selected }
+    val apps by produceState<List<AppEntry>?>(null) {
+        value = withContext(Dispatchers.IO) {
+            val all = Apps.launchable(context)
+            // A checked app without a launcher icon, or one since removed, stays so it can be unchecked.
+            val missing = initial - all.map { it.packageName }.toSet()
+            (all + missing.map { AppEntry(it, Apps.label(context, it)) })
+                .sortedWith(compareBy<AppEntry> { it.packageName !in initial }.thenBy(Apps.byName) { it.label })
+        }
+    }
+    var query by remember { mutableStateOf("") }
+    // Edge to edge like the main screen: the surface goes under the system bars, the content doesn't.
+    Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        // The dialog's own window: dark bar icons on a light surface, as enableEdgeToEdge does for the activity.
+        val view = LocalView.current
+        val light = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+        SideEffect {
+            (view.parent as? DialogWindowProvider)?.window?.let { w ->
+                WindowCompat.getInsetsController(w, view).run {
+                    isAppearanceLightStatusBars = light
+                    isAppearanceLightNavigationBars = light
+                }
+            }
+        }
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.bypass_apps)) },
+                    navigationIcon = {
+                        IconButton(onDismiss) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.back)) }
+                    },
+                    windowInsets = WindowInsets(0),
+                )
+                OutlinedTextField(
+                    query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    placeholder = { Text(stringResource(R.string.search)) },
+                    leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                    trailingIcon = if (query.isNotEmpty()) {
+                        { IconButton({ query = "" }) { Icon(Icons.Rounded.Close, stringResource(R.string.close)) } }
+                    } else null,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                )
+                Text(
+                    stringResource(R.string.bypass_apps_hint), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                )
+                val list = apps
+                if (list == null) {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                } else {
+                    val q = query.trim()
+                    val shown = if (q.isEmpty()) list else list.filter { it.label.contains(q, ignoreCase = true) || it.packageName.contains(q, ignoreCase = true) }
+                    LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
+                        items(shown, key = { it.packageName }) { app ->
+                            val checked = app.packageName in selected
+                            ListItem(
+                                headlineContent = { Text(app.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                supportingContent = { Text(app.packageName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                leadingContent = { AppIcon(app.packageName) },
+                                trailingContent = { Checkbox(checked, onCheckedChange = null) },
+                                modifier = Modifier.toggleable(checked, role = Role.Checkbox) { on ->
+                                    onChange(if (on) selected + app.packageName else selected - app.packageName)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppIcon(packageName: String) {
+    val context = LocalContext.current
+    val px = with(LocalDensity.current) { 40.dp.roundToPx() }
+    val icon by produceState<ImageBitmap?>(null, packageName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { context.packageManager.getApplicationIcon(packageName).toBitmap(px, px).asImageBitmap() }.getOrNull()
+        }
+    }
+    Box(Modifier.size(40.dp)) { icon?.let { Image(it, null, Modifier.matchParentSize()) } }
 }
 
 /** One fixed-height line for what matters most right now: an error, a notice, the traffic, or where Connect goes. */

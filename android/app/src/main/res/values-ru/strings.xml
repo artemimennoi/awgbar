@@ -55,4 +55,9 @@
     <string name="from_clipboard_desc">Скопированный ключ vpn://… или конфиг</string>
     <string name="scan_qr_desc">Из AmneziaVPN или с другого экрана</string>
     <string name="from_file_desc">Файл .conf или бэкап AmneziaVPN</string>
+    <string name="bypass_apps">Приложения</string>
+    <string name="bypass_apps_none">Нет</string>
+    <string name="bypass_apps_hint">Отмеченные приложения ходят мимо туннеля; активный туннель переподключится после «Применить». Если включено «Блокировать соединения без VPN», у них не будет интернета.</string>
+    <string name="search">Поиск</string>
+    <string name="back">Назад</string>
 </resources>
