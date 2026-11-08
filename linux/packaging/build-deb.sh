@@ -58,10 +58,12 @@ if [ "$userspace" = awgcore ]; then
     done
 fi
 
-# Library dependencies of the app, as this distribution's Qt names them.
+# Library dependencies of the app, as this distribution's Qt names them, and of awgcore.
 mkdir -p "$build/shlibs/debian"
 echo "Source: awgbar" > "$build/shlibs/debian/control"
-depends=$(cd "$build/shlibs" && dpkg-shlibdeps -O "$root/usr/bin/awgbar" 2>/dev/null | sed -n 's/^shlibs:Depends=//p')
+binaries=("$root/usr/bin/awgbar")
+[ -f "$root/usr/lib/awgbar/awgcore" ] && binaries+=("$root/usr/lib/awgbar/awgcore")
+depends=$(cd "$build/shlibs" && dpkg-shlibdeps -O "${binaries[@]}" 2>/dev/null | sed -n 's/^shlibs:Depends=//p')
 
 mkdir -p "$root/DEBIAN"
 for script in postinst prerm postrm; do
