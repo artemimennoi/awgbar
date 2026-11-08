@@ -1,5 +1,7 @@
-# Builds "AWG Bar.app" with its own amneziawg-go, awg (wg), awg-quick and a self-contained bash.
-# Needs: Swift (Command Line Tools are enough), Go, git, curl.
+# Builds "AWG Bar.app" with its own userspace tunnel (awgcore, or amneziawg-go as the fallback),
+# awg (wg), awg-quick and a self-contained bash.
+# Needs: Swift (Command Line Tools are enough), Rust through rustup (awgcore pins its toolchain),
+# git, curl; Go only for the amneziawg-go fallback.
 
 # .noindex keeps Spotlight from listing a second copy from the build directory.
 BUILD      := build.noindex
@@ -14,6 +16,23 @@ BASH_DIR   := $(DEPS)/bash-$(BASH_VER)
 
 AWG_GO_REV    ?= b5928efb6ca19f0153958460c3d141f04abc5c2e
 AWG_TOOLS_REV ?= ee0f0a9aa34ff0a0da4b3433b9512781cfe02843
+
+# The userspace tunnel awg-quick runs: awgcore, our own core in Rust (artemimennoi/awgcore, private,
+# so fetching it needs your GitHub credentials), or amneziawg-go, the fallback:
+#   make app USERSPACE=amneziawg-go
+USERSPACE   ?= awgcore
+AWGCORE     := $(DEPS)/awgcore
+AWGCORE_URL ?= https://github.com/artemimennoi/awgcore
+AWGCORE_REV ?= 93433dc50a16444513aa5360c1b0d8657e6d442d
+ifeq ($(USERSPACE),awgcore)
+USERSPACE_BIN := $(AWGCORE)/target/release/awgcore
+USERSPACE_DEP := $(AWGCORE)/.built-$(AWGCORE_REV)
+else ifeq ($(USERSPACE),amneziawg-go)
+USERSPACE_BIN := $(AWG_GO)/amneziawg-go
+USERSPACE_DEP := $(AWG_GO)/amneziawg-go
+else
+$(error USERSPACE must be awgcore or amneziawg-go)
+endif
 
 # One version for the macOS, Linux and Android clients, released together under one tag.
 VERSION    := $(shell cat VERSION)
@@ -41,6 +60,13 @@ $(AWG_GO)/amneziawg-go:
 	$(call fetch_rev,$(AWG_GO),https://github.com/amnezia-vpn/amneziawg-go,$(AWG_GO_REV))
 	$(MAKE) -C $(AWG_GO)
 
+# Vendored crates and a pinned toolchain: cargo builds offline from the checkout alone. The revision
+# goes into `awgcore --version`. The stamp names the revision, so changing AWGCORE_REV rebuilds.
+$(AWGCORE)/.built-$(AWGCORE_REV):
+	$(call fetch_rev,$(AWGCORE),$(AWGCORE_URL),$(AWGCORE_REV))
+	cd $(AWGCORE) && AWGCORE_REV=$(shell printf %.7s $(AWGCORE_REV)) cargo build --release --locked --offline -p awgcore
+	touch $@
+
 $(AWG_TOOLS)/src/wg:
 	$(call fetch_rev,$(AWG_TOOLS),https://github.com/amnezia-vpn/amneziawg-tools,$(AWG_TOOLS_REV))
 	$(MAKE) -C $(AWG_TOOLS)/src wg
@@ -67,7 +93,7 @@ icon:
 		--output-partial-info-plist $(BUILD)/icon/partial.plist >/dev/null
 	cp $(BUILD)/icon/Assets.car $(BUILD)/icon/AppIcon.icns Resources/
 
-deps: $(AWG_GO)/amneziawg-go $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash
+deps: $(USERSPACE_DEP) $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash
 
 app: deps
 	swift build -c release
@@ -79,7 +105,7 @@ app: deps
 	cp .build/release/awgbar-helper "$(RES)/helper/local.awgbar.helper"
 	cp Resources/install-helper.sh Resources/uninstall-helper.sh "$(RES)/"
 	cp -R Resources/ru.lproj Resources/AppIcon.icns Resources/Assets.car "$(RES)/"
-	cp $(AWG_GO)/amneziawg-go $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash "$(RES)/bin/"
+	cp $(USERSPACE_BIN) $(AWG_TOOLS)/src/wg $(BASH_DIR)/bash "$(RES)/bin/"
 	# Fixes leftover /var/run/wireguard paths, keeps awg-quick from blocking under launchd,
 	# and routes split-tunnel exclusions like endpoints. See the comments in the patch.
 	patch -s -o "$(RES)/bin/awg-quick" $(AWG_TOOLS)/src/wg-quick/darwin.bash Resources/awg-quick-darwin.patch
@@ -107,7 +133,7 @@ dist: app
 	hdiutil create -quiet -volname "AWG Bar $(VERSION)" -srcfolder $(DIST)/dmg -ov -format UDZO $(DIST)/awgbar-$(VERSION)-macos-arm64.dmg
 	rm -rf $(DIST)/dmg
 	git -C $(AWG_TOOLS) archive --prefix=amneziawg-tools/ -o "$(CURDIR)/$(DIST)/src/amneziawg-tools-$(AWG_TOOLS_REV).tar.gz" HEAD
-	git -C $(AWG_GO) archive --prefix=amneziawg-go/ -o "$(CURDIR)/$(DIST)/src/amneziawg-go-$(AWG_GO_REV).tar.gz" HEAD
+	$(if $(filter amneziawg-go,$(USERSPACE)),git -C $(AWG_GO) archive --prefix=amneziawg-go/ -o "$(CURDIR)/$(DIST)/src/amneziawg-go-$(AWG_GO_REV).tar.gz" HEAD)
 	cp $(DEPS)/bash-$(BASH_VER).tar.gz Resources/awg-quick-darwin.patch THIRD_PARTY_NOTICES.md $(DIST)/src/
 	tar -czf $(DIST)/awgbar-$(VERSION)-third-party-sources.tar.gz -C $(DIST) src
 	rm -rf $(DIST)/src

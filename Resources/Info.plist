@@ -35,6 +35,6 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>AmneziaWG: amneziawg-go (MIT), amneziawg-tools (GPL-2.0)</string>
+	<string>AmneziaWG: awgcore; amneziawg-go (MIT), amneziawg-tools (GPL-2.0)</string>
 </dict>
 </plist>

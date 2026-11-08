@@ -17,7 +17,7 @@ public enum HelperPaths {
     public static var debugLogFlag: String { support + "/debug-log" }
     public static let helperBinary = "/Library/PrivilegedHelperTools/\(label)"
     /// Bump when the helper or the bundled tools change, so the app offers to reinstall.
-    public static let version = 10
+    public static let version = 11
 }
 
 public struct Request: Codable, Sendable {

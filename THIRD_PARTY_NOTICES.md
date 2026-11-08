@@ -6,9 +6,17 @@ programs, each under its own license. Exact revisions are pinned in the `Makefil
 
 | Component | Used as | License | Source |
 |---|---|---|---|
-| amneziawg-go | `Contents/Resources/bin/amneziawg-go`, the userspace tunnel | MIT | https://github.com/amnezia-vpn/amneziawg-go |
+| awgcore | `Contents/Resources/bin/awgcore`, the userspace tunnel (default build) | the author's own, not yet published | https://github.com/artemimennoi/awgcore (private) |
+| amneziawg-go | `Contents/Resources/bin/amneziawg-go`, the userspace tunnel (fallback build, `make USERSPACE=amneziawg-go`) | MIT | https://github.com/amnezia-vpn/amneziawg-go |
 | amneziawg-tools | `bin/wg` (the `awg` tool) and `bin/awg-quick` (`src/wg-quick/darwin.bash`) | GPL-2.0 | https://github.com/amnezia-vpn/amneziawg-tools |
 | GNU Bash 5.2.37 | `bin/bash`, runs awg-quick | GPL-3.0-or-later | https://ftp.gnu.org/gnu/bash/bash-5.2.37.tar.gz |
+
+awgcore links these Rust crates statically, vendored in its repository at the versions its
+`Cargo.lock` pins: aead, blake2, block-buffer, cfg-if, chacha20, chacha20poly1305, cipher, cmov,
+crypto-common, ctutils, digest, hkdf, hmac, hybrid-array, inout, libc, poly1305, rand_core,
+typenum, universal-hash and zeroize (MIT OR Apache-2.0), fiat-crypto (MIT OR Apache-2.0 OR
+BSD-1-Clause), and curve25519-dalek, x25519-dalek and subtle (BSD-3-Clause). Their license texts are
+in each crate's directory under `vendor/` there.
 
 `bin/awg-quick` is modified: `Resources/awg-quick-darwin.patch` is applied at build time and is
 itself distributed under GPL-2.0, like the file it changes. If you distribute a built app, you

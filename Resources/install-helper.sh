@@ -21,8 +21,18 @@ install -d -o root -g wheel -m 0700 "$SUPPORT/tunnels"
 # The configs hold private keys in the clear (root only): keep them out of Time Machine.
 tmutil addexclusion "$SUPPORT" 2>/dev/null || true
 install -o root -g wheel -m 0755 "$RES/helper/$LABEL" "$HELPER"
-for f in awg-quick wg amneziawg-go bash; do
+for f in awg-quick wg bash; do
 	install -o root -g wheel -m 0755 "$RES/bin/$f" "$SUPPORT/bin/$f"
+done
+# The userspace tunnel is whichever the build bundled: awgcore, or amneziawg-go in a fallback
+# build (make USERSPACE=amneziawg-go). The other is removed, so the helper runs what came with
+# the app.
+for f in awgcore amneziawg-go; do
+	if [[ -f "$RES/bin/$f" ]]; then
+		install -o root -g wheel -m 0755 "$RES/bin/$f" "$SUPPORT/bin/$f"
+	else
+		rm -f "$SUPPORT/bin/$f"
+	fi
 done
 
 cat > "$PLIST" <<EOF
@@ -42,7 +52,7 @@ cat > "$PLIST" <<EOF
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
-	<!-- amneziawg-go and the awg-quick route monitor must survive a helper restart. -->
+	<!-- The userspace tunnel and the awg-quick route monitor must survive a helper restart. -->
 	<key>AbandonProcessGroup</key>
 	<true/>
 	<!-- No StandardOutPath/StandardErrorPath: nothing is logged unless the debug log is turned on. -->

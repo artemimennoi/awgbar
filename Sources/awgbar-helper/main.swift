@@ -61,7 +61,7 @@ func setDebugLog(_ enabled: Bool) {
 // MARK: - Processes
 
 /// Output goes to a file rather than a pipe: awg-quick leaves a background route monitor
-/// and amneziawg-go running, and either could keep a pipe open forever.
+/// and the userspace tunnel running, and either could keep a pipe open forever.
 func run(_ executable: String, _ args: [String], environment: [String: String] = [:], timeout: TimeInterval = 30) -> (status: Int32, output: String) {
     let outputURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("awgbar-\(UUID().uuidString).out")
     fm.createFile(atPath: outputURL.path, contents: nil, attributes: [.posixPermissions: 0o600])
@@ -93,12 +93,18 @@ func run(_ executable: String, _ args: [String], environment: [String: String] =
     return (process.terminationStatus, output)
 }
 
+/// The userspace tunnel awg-quick starts: awgcore when the app bundled it (the default build),
+/// amneziawg-go in a fallback build. install-helper.sh leaves only the one that came with the app.
+var userspaceTunnel: String {
+    fm.isExecutableFile(atPath: "\(HelperPaths.bin)/awgcore") ? "awgcore" : "amneziawg-go"
+}
+
 func awgQuick(_ action: String, _ path: String) -> (status: Int32, output: String) {
     // Exclusions ride awg-quick's endpoint routes (see Resources/awg-quick-darwin.patch);
     // the route monitor inherits this variable and keeps them on the current gateway.
     let excluded = loadExcluded().map(\.description).joined(separator: " ")
     return run("\(HelperPaths.bin)/bash", ["\(HelperPaths.bin)/awg-quick", action, path],
-               environment: ["AWGBAR_EXCLUDED": excluded])
+               environment: ["AWGBAR_EXCLUDED": excluded, "WG_QUICK_USERSPACE_IMPLEMENTATION": userspaceTunnel])
 }
 
 func wgShow(_ iface: String, _ field: String) -> [[String]] {
@@ -204,7 +210,7 @@ func unblockIPv6(_ name: String) {
 /// While a full-tunnel config is up, a pf anchor lets out only the tunnel, the server, local
 /// networks, the "Bypass" subnets and DHCP. Routes alone can be talked around: a DHCP server
 /// can push routes more specific than awg-quick's /1s (option 121, "TunnelVision"), a v4-only
-/// config leaves IPv6 alone, and if amneziawg-go dies its routes go with it. The anchor sits under
+/// config leaves IPv6 alone, and if the userspace tunnel dies its routes go with it. The anchor sits under
 /// com.apple, which the stock /etc/pf.conf evaluates, so the system ruleset is never rewritten;
 /// pf is enabled with a reference token that is released again on disconnect. The rules stay when
 /// the tunnel dies: the app then shows it as blocked until the user disconnects.
@@ -358,11 +364,13 @@ func connectedTunnel() -> String? {
 /// traffic goes in, nothing comes back, and the latest handshake is older than WireGuard's own
 /// rekey would leave it. A server route lost on a network change and an amneziawg-go that stopped
 /// receiving both end like this, and a reconnect clears either. An idle tunnel is left alone.
+/// awgcore binds its socket to the physical interface, rebuilds it after an error and starts a
+/// handshake after 20 s without replies, all by itself; with it this is the last resort.
 func checkTunnel(now: Date = Date()) {
     if watched == nil, let name = connectedTunnel() { watched = Watched(name: name) }
     guard var tunnel = watched else { return }
     guard realInterface(tunnel.name) != nil else {
-        // Only a reconnect of ours is retried; a tunnel whose amneziawg-go died stays blocked
+        // Only a reconnect of ours is retried; a tunnel whose userspace tunnel died stays blocked
         // until the user disconnects, as before.
         if let retryAt = tunnel.retryAt, now >= retryAt, killSwitchArmed(tunnel.name) {
             reconnect(tunnel.name, reason: "reconnect failed before", now: now)

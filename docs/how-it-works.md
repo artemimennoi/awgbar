@@ -36,11 +36,14 @@ AWG Bar.app (SwiftUI MenuBarExtra, runs as you)
 local.awgbar.helper (LaunchDaemon, root)
     │  bash awg-quick up|down /Library/Application Support/AWGBar/run/<tunnel>.conf
     ▼
-amneziawg-go (utun) + routes + DNS + pf anchor
+awgcore (utun) + routes + DNS + pf anchor
 ```
 
 No paid Apple Developer account is needed: instead of a Network Extension a small root helper (a
-LaunchDaemon) runs `amneziawg-go` and `awg-quick`, all built from pinned sources.
+LaunchDaemon) runs `awg-quick` and the userspace tunnel under it, all built from pinned sources:
+awgcore, our own AmneziaWG core in Rust (`artemimennoi/awgcore`), or `amneziawg-go` in a fallback
+build (`make USERSPACE=amneziawg-go`). awgcore is a drop-in for `amneziawg-go`: the same command
+line, UAPI socket and `awg` tool.
 
 - The helper accepts requests only from root and from the user who installed it.
 - Tunnels live in `/Library/Application Support/AWGBar/tunnels` (root only, 0600), excluded from
@@ -56,7 +59,11 @@ LaunchDaemon) runs `amneziawg-go` and `awg-quick`, all built from pinned sources
   traffic into the tunnel.
 - A tunnel that looks connected but carries nothing is reconnected, as on Linux: traffic goes in,
   nothing comes back, and the latest handshake is over three minutes old. The kill switch stays
-  on in between. An idle tunnel is left alone.
+  on in between. An idle tunnel is left alone. With awgcore this is the last resort: its UDP
+  socket is bound to the physical interface (`IP_BOUND_IF`), so a lost server route cannot loop
+  the tunnel into itself; it moves the socket when the network changes, rebuilds it after any
+  error, and starts a handshake after 20 s without replies, logging each of these to the system
+  log (`log show --predicate 'process == "awgcore"'`).
 - The kill switch is a pf anchor, `com.apple/AWGBar`, which the stock `/etc/pf.conf` already
   evaluates, so the system ruleset is never rewritten. pf is enabled with a reference token that
   is given back on disconnect. Its rules are stateless, so connections already open (localhost
@@ -64,7 +71,7 @@ LaunchDaemon) runs `amneziawg-go` and `awg-quick`, all built from pinned sources
   so a server answering from another address doesn't lock the tunnel out. DNS queries to the
   tunnel's servers may also leave through Wi-Fi or Ethernet: their addresses are set on the
   network services and macOS sends some queries bound to those, which blocked would kill DNS until
-  a reconnect (AmneziaVPN allows the same). If `amneziawg-go` dies, the rules stay and the menu
+  a reconnect (AmneziaVPN allows the same). If the userspace tunnel dies, the rules stay and the menu
   says "Connection lost · traffic blocked" until you disconnect.
 - Updates are checked against an Ed25519 signature of the release's `SHA256SUMS`, whose public
   key is in the app; a release changed without the private key is refused.
