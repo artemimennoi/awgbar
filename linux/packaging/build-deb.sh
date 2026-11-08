@@ -1,14 +1,16 @@
 #!/bin/bash
 # Builds the awgbar .deb inside a container of the oldest distribution the package targets
 # (see linux/Makefile). Run by `make -C linux deb`, not by hand:
-#   build-deb.sh <qt5|qt6> <version> <out dir>
+#   build-deb.sh <qt5|qt6> <version> <out dir> [awgcore|amneziawg-go]
 # Expects the repository at /src and the helper binary already built at
-# /src/linux/build/awgbar-helper-<arch>.
+# /src/linux/build/awgbar-helper-<arch>; with awgcore (the default), awgcore at
+# /src/linux/build/awgcore-<arch> and its crates' licenses next to it.
 set -euo pipefail
 
 flavor=$1
 version=$2
 out=$3
+userspace=${4:-awgcore}
 qt=${flavor#qt}
 arch=$(dpkg --print-architecture)
 
@@ -29,6 +31,13 @@ strip "$build/app/awgbar"
 root=$build/root
 install -Dm755 "$build/app/awgbar" "$root/usr/bin/awgbar"
 install -Dm755 "/src/linux/build/awgbar-helper-$arch" "$root/usr/lib/awgbar/awgbar-helper"
+# The helper runs awgcore when it is there, amneziawg-go built into it when it is not.
+if [ "$userspace" = awgcore ]; then
+    install -Dm755 "/src/linux/build/awgcore-$arch" "$root/usr/lib/awgbar/awgcore"
+    tunnel="awgcore, our own AmneziaWG core, as a process of its own"
+else
+    tunnel="amneziawg-go, built in"
+fi
 pkg=/src/linux/packaging
 install -Dm644 "$pkg/awgbar-helper.service" "$root/lib/systemd/system/awgbar-helper.service"
 install -Dm644 "$pkg/io.github.artemimennoi.awgbar.policy" "$root/usr/share/polkit-1/actions/io.github.artemimennoi.awgbar.policy"
@@ -42,6 +51,12 @@ install -Dm644 "$pkg/copyright" "$root/usr/share/doc/awgbar/copyright"
 for license in /src/linux/build/licenses/*.txt; do
     install -Dm644 "$license" "$root/usr/share/doc/awgbar/licenses/$(basename "$license")"
 done
+if [ "$userspace" = awgcore ]; then
+    cat "$pkg/copyright-awgcore" >> "$root/usr/share/doc/awgbar/copyright"
+    for license in "/src/linux/build/awgcore-$arch-licenses"/*; do
+        install -Dm644 "$license" "$root/usr/share/doc/awgbar/licenses/awgcore/$(basename "$license")"
+    done
+fi
 
 # Library dependencies of the app, as this distribution's Qt names them.
 mkdir -p "$build/shlibs/debian"
@@ -55,7 +70,7 @@ done
 echo "/etc/xdg/autostart/awgbar.desktop" > "$root/DEBIAN/conffiles"
 size=$(du -sk --exclude=DEBIAN "$root" | cut -f1)
 sed -e "s/@VERSION@/$version/" -e "s/@ARCH@/$arch/" -e "s/@DEPENDS@/$depends/" -e "s/@SIZE@/$size/" \
-    "$pkg/debian/control" > "$root/DEBIAN/control"
+    -e "s/@TUNNEL@/$tunnel/" "$pkg/debian/control" > "$root/DEBIAN/control"
 
 mkdir -p "$out"
 deb="$out/awgbar_${version}_${flavor}_${arch}.deb"

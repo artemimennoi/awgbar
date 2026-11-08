@@ -1,6 +1,7 @@
 # AWG Bar for Linux
 
-The Linux client: `helper/` is the root service (Go, amneziawg-go built in), `app/` the tray and
+The Linux client: `helper/` is the root service (Go; it runs awgcore, our own AmneziaWG core, as a
+process of its own, or `amneziawg-go` built in for the fallback package), `app/` the tray and
 window (C++/Qt), `packaging/` the .deb with its systemd unit and polkit policy.
 
 - Installing and using it: the main [README](../README.md).

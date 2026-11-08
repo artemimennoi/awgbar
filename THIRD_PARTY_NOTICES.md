@@ -29,6 +29,17 @@ license texts in `/usr/share/doc/awgbar/licenses`. Versions are pinned in `linux
 | mdlayher/netlink, mdlayher/socket | MIT | https://github.com/mdlayher/netlink |
 | golang.org/x/sys, x/net, x/crypto | BSD-3-Clause | https://go.googlesource.com |
 
+The default package also ships awgcore (`/usr/lib/awgbar/awgcore`, the userspace tunnel, from
+https://github.com/artemimennoi/awgcore, private, the author's own license, not yet published),
+pinned by `AWGCORE_REV` in `linux/Makefile`. It links these Rust crates statically, vendored in
+its repository at the versions its `Cargo.lock` pins: aead, blake2, block-buffer, cfg-if, chacha20,
+chacha20poly1305, cipher, cmov, cpufeatures, crypto-common, ctutils, digest, hkdf, hmac,
+hybrid-array, inout, libc, poly1305, rand_core, typenum, universal-hash and zeroize (MIT OR
+Apache-2.0), fiat-crypto (MIT OR Apache-2.0 OR BSD-1-Clause), and curve25519-dalek, x25519-dalek
+and subtle (BSD-3-Clause); the package ships their license texts in
+`/usr/share/doc/awgbar/licenses/awgcore`. The fallback package (`USERSPACE=amneziawg-go`) does
+not.
+
 The Linux app links the distribution's Qt (LGPL-3.0) dynamically.
 
 ## Android app (`android/`)

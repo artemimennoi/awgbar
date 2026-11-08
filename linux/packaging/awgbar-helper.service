@@ -20,6 +20,9 @@ StateDirectoryMode=0700
 # Root, but only with the network capabilities it needs. /etc stays writable for resolv.conf
 # on systems without systemd-resolved.
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+# awgcore locks its pages once they are touched (mlockall with MCL_ONFAULT), so no key is swapped
+# out; without CAP_IPC_LOCK that needs the limit lifted. It costs no memory that is not used.
+LimitMEMLOCK=infinity
 NoNewPrivileges=yes
 ProtectSystem=true
 ProtectHome=yes
