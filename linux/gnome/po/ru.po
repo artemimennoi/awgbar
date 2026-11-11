@@ -1,0 +1,168 @@
+# Russian translation of AWG Bar for GNOME Shell. The wording follows linux/app/src/l10n.cpp.
+msgid ""
+msgstr ""
+"Project-Id-Version: awgbar\n"
+"PO-Revision-Date: 2026-11-11 00:00+0300\n"
+"Last-Translator: Artem Imennoi\n"
+"Language-Team: Russian\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "Please wait…"
+msgstr "Подождите…"
+
+msgid "Connected · %s"
+msgstr "Подключено · %s"
+
+msgid "Disconnected"
+msgstr "Отключено"
+
+msgid "Connect"
+msgstr "Подключить"
+
+msgid "Disconnect"
+msgstr "Отключить"
+
+msgid "Rename…"
+msgstr "Переименовать…"
+
+msgid "Delete…"
+msgstr "Удалить…"
+
+msgid "Rename Tunnel"
+msgstr "Переименовать туннель"
+
+msgid "Name:"
+msgstr "Имя:"
+
+msgid "Bypass"
+msgstr "Обход"
+
+msgid "Off"
+msgstr "Выключен"
+
+msgid "More"
+msgstr "Ещё"
+
+msgid "Close"
+msgstr "Закрыть"
+
+msgid "Add Tunnel"
+msgstr "Добавить туннель"
+
+msgid "Disconnect to switch tunnels"
+msgstr "Чтобы сменить туннель, сначала отключитесь"
+
+msgid "Apply"
+msgstr "Применить"
+
+msgid "No tunnels"
+msgstr "Нет туннелей"
+
+msgid "Copy a vpn://… key or choose a .conf file"
+msgstr "Скопируй ключ vpn://… или выбери файл .conf"
+
+msgid "From Clipboard"
+msgstr "Из буфера"
+
+msgid "From File…"
+msgstr "Из файла…"
+
+msgid "Copy Log"
+msgstr "Скопировать лог"
+
+msgid "The AWG Bar service is not running"
+msgstr "Служба AWG Bar не запущена"
+
+msgid "Start it with:"
+msgstr "Запусти её командой:"
+
+msgid "Not allowed to control the VPN"
+msgstr "Нет прав управлять VPN"
+
+msgid "The AWG Bar service is outdated; reinstall the package"
+msgstr "Служба AWG Bar устарела, переустанови пакет"
+
+msgid "Debug Log"
+msgstr "Отладочный лог"
+
+msgid "Helper error"
+msgstr "Ошибка службы"
+
+msgid "The helper sent a broken reply"
+msgstr "Служба прислала непонятный ответ"
+
+msgid "The helper did not answer in time"
+msgstr "Служба не ответила вовремя"
+
+msgid "The helper closed the connection"
+msgstr "Служба закрыла соединение"
+
+msgid "Delete tunnel %s?"
+msgstr "Удалить туннель %s?"
+
+msgid "The config will be deleted permanently."
+msgstr "Конфиг будет удалён без возможности восстановления."
+
+msgid "Delete"
+msgstr "Удалить"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Choose an AmneziaWG .conf or a file with a vpn:// key"
+msgstr "Выбери .conf AmneziaWG или файл с ключом vpn://"
+
+msgid "Cannot read %s"
+msgstr "Не удалось прочитать %s"
+
+msgid "Already added as %s"
+msgstr "Уже добавлен как %s"
+
+msgid "Expected a vpn://… key, AmneziaVPN JSON or an AmneziaWG config"
+msgstr "Нужен ключ vpn://…, JSON из AmneziaVPN или конфиг AmneziaWG"
+
+msgid "The file is not valid JSON"
+msgstr "Файл не является корректным JSON"
+
+msgid "Broken key: not base64"
+msgstr "Ключ повреждён: это не base64"
+
+msgid "Broken key: cannot unpack it"
+msgstr "Ключ повреждён: не удалось распаковать"
+
+msgid "This is an Amnezia Premium/Free key: its config is issued by Amnezia's server at connect time and cannot be imported"
+msgstr "Это ключ Amnezia Premium/Free: конфиг выдаётся их сервером при подключении, импортировать его нельзя"
+
+msgid "No ready AmneziaWG config inside. If this is an admin key or a backup, connect once in AmneziaVPN and share the connection in AmneziaWG format"
+msgstr "Внутри нет готового конфига AmneziaWG. Если это админский ключ или бэкап, подключись один раз в AmneziaVPN и поделись подключением в формате AmneziaWG"
+
+msgid "Rename"
+msgstr "Переименовать"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Tunnels"
+msgstr "Туннели"
+
+msgid "Connected"
+msgstr "Подключено"
+
+msgid "B"
+msgstr "Б"
+
+msgid "KB"
+msgstr "КБ"
+
+msgid "MB"
+msgstr "МБ"
+
+msgid "GB"
+msgstr "ГБ"
+
+msgid "TB"
+msgstr "ТБ"
