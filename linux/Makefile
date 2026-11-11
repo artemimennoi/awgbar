@@ -26,10 +26,10 @@ QT5_IMAGE := ubuntu:22.04
 QT6_IMAGE := debian:13
 
 # The userspace tunnel. awgcore, our own core in Rust, runs as a process of its own that the
-# helper starts and talks UAPI to; amneziawg-go, the fallback, is built into the helper. The helper
-# runs awgcore whenever the package ships it (/usr/lib/awgbar/awgcore), so the fallback package is
-# the same helper without it. awgcore is built for x86-64-v3 (AVX2); on a CPU without it the helper
-# runs amneziawg-go.
+# helper starts and talks UAPI to. It is built for x86-64-v3 (AVX2); on a CPU without it the helper
+# refuses to connect and the app says why. USERSPACE=amneziawg-go builds a package without awgcore
+# whose helper has amneziawg-go built in (Go tag amneziawg_go), as CI does: it has no credentials
+# for awgcore. The default helper has no amneziawg-go in it.
 USERSPACE   ?= awgcore
 AWGCORE_URL ?= https://github.com/artemimennoi/awgcore
 AWGCORE_REV ?= eebf3502dc68e4a161817f08c0fb7aae095f59a6
@@ -38,16 +38,18 @@ AWGCORE_SRC := $(BUILD)/awgcore-src/$(AWGCORE_REV)
 RUST_CACHE  := $(BUILD)/rust-$(ARCH)
 ifeq ($(USERSPACE),awgcore)
 CORE_DEP := $(BUILD)/awgcore-$(ARCH)
+GO_TAGS  :=
 else ifeq ($(USERSPACE),amneziawg-go)
 CORE_DEP :=
+GO_TAGS  := amneziawg_go
 else
 $(error USERSPACE must be awgcore or amneziawg-go)
 endif
 
-# Modules linked into the helper; their license texts ship in the package.
-GO_LICENSES := github.com/amnezia-vpn/amneziawg-go/v3 github.com/godbus/dbus/v5 github.com/vishvananda/netlink \
-               github.com/vishvananda/netns github.com/google/nftables github.com/mdlayher/netlink \
-               github.com/mdlayher/socket golang.org/x/crypto golang.org/x/net golang.org/x/sys
+# Modules linked into the helper (this build's tags decide which); their license texts ship in
+# the package.
+GO_MODULES = GOOS=linux GOARCH=$(ARCH) go list -deps -tags '$(GO_TAGS)' \
+             -f '{{with .Module}}{{if not .Main}}{{.Path}}{{end}}{{end}}' ./helper | sort -u
 
 .PHONY: all helper licenses awgcore deb deb-qt5 deb-qt6 test clean
 
@@ -55,7 +57,8 @@ all: deb
 
 helper:
 	mkdir -p $(BUILD)
-	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -trimpath -ldflags='-s -w' -o $(BUILD)/awgbar-helper-$(ARCH) ./helper
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -trimpath -ldflags='-s -w' -tags '$(GO_TAGS)' \
+		-o $(BUILD)/awgbar-helper-$(ARCH) ./helper
 
 # One shallow fetch of the pinned commit; the stamp names it, so changing AWGCORE_REV fetches again.
 $(AWGCORE_SRC)/.fetched:
@@ -80,7 +83,7 @@ $(BUILD)/awgcore-$(ARCH): $(AWGCORE_SRC)/.fetched packaging/build-awgcore.sh
 
 licenses:
 	rm -rf $(BUILD)/licenses && mkdir -p $(BUILD)/licenses
-	for m in $(GO_LICENSES); do \
+	for m in $$($(GO_MODULES)); do \
 		dir=$$(go list -m -f '{{.Dir}}' $$m) && \
 		cp "$$(ls "$$dir"/LICENSE* | head -1)" "$(BUILD)/licenses/$$(echo $$m | tr / _).txt" || exit 1; \
 	done

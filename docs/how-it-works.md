@@ -111,9 +111,10 @@ moves to another network, the VPN comes back by itself.
   network changes over netlink, rebuilds its socket after any error and starts a handshake after
   20 s without replies, each logged to the journal (`journalctl -u awgbar-helper`, or
   `-t awgcore`). awgcore is built for x86-64-v3, a CPU with AVX2 (Intel Core since 2013, AMD
-  since 2015, not every Pentium, Celeron or Atom); on one without it the helper runs `amneziawg-go`
-  inside itself instead and says so in the journal, as the fallback package (`make deb
-  USERSPACE=amneziawg-go`) always does.
+  since 2015, not every Pentium, Celeron or Atom); on one without it the helper refuses to connect
+  (`version` reports the missing flags, the app shows why) and says so in the journal. The package
+  built with `USERSPACE=amneziawg-go`, CI's, has no awgcore and runs `amneziawg-go` inside the
+  helper instead.
 - The kill switch is an nftables table, `inet awgbar`. Marked packets always pass, so it never
   blocks the reconnect.
 - DNS: with systemd-resolved the servers sit on `awgbar0` with the `~.` routing domain and other

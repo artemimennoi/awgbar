@@ -50,9 +50,11 @@ make -C linux deb              # linux/build/dist/awgbar_<version>_qt{5,6}_amd64
 make -C linux test             # helper unit tests in a container
 ```
 
-`make -C linux deb USERSPACE=amneziawg-go` builds the fallback, without awgcore: the helper then
-runs `amneziawg-go` built into it, as it does whenever `/usr/lib/awgbar/awgcore` is missing. CI
-builds the fallback, having no credentials for awgcore. `AWGCORE_REV` in `linux/Makefile` pins
+The default package's helper has no `amneziawg-go` in it: awgcore is the tunnel, and on a CPU
+without x86-64-v3 the helper refuses to connect and the app says why.
+`make -C linux deb USERSPACE=amneziawg-go` builds a package without awgcore whose helper has
+`amneziawg-go` built in (the Go build tag `amneziawg_go`); CI builds that one, having no
+credentials for awgcore, and runs the helper's tests with and without the tag. `AWGCORE_REV` in `linux/Makefile` pins
 awgcore; `PKG_VERSION` gives a local build its own package version.
 
 The helper also builds alone with `GOOS=linux go build ./helper` (in `linux/`), the app with CMake

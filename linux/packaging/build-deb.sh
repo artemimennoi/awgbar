@@ -31,7 +31,8 @@ strip "$build/app/awgbar"
 root=$build/root
 install -Dm755 "$build/app/awgbar" "$root/usr/bin/awgbar"
 install -Dm755 "/src/linux/build/awgbar-helper-$arch" "$root/usr/lib/awgbar/awgbar-helper"
-# The helper runs awgcore when it is there, amneziawg-go built into it when it is not.
+# The default package: awgcore, and a helper without amneziawg-go. USERSPACE=amneziawg-go: no
+# awgcore, a helper with amneziawg-go built in.
 if [ "$userspace" = awgcore ]; then
     install -Dm755 "/src/linux/build/awgcore-$arch" "$root/usr/lib/awgbar/awgcore"
     tunnel="awgcore, our own AmneziaWG core, as a process of its own"

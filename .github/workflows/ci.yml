@@ -34,6 +34,9 @@ jobs:
           [ -z "$unformatted" ] || { echo "not gofmt'ed: $unformatted"; exit 1; }
       - run: go vet ./helper
       - run: go test ./helper
+      # The helper with amneziawg-go built in, as the package CI builds has it.
+      - run: go vet -tags amneziawg_go ./helper
+      - run: go test -tags amneziawg_go ./helper
 
   linux-packages:
     name: Linux package (${{ matrix.flavor }})

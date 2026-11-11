@@ -2,13 +2,13 @@ package main
 
 import (
 	"encoding/base64"
+	"errors"
 	"net"
 	"net/netip"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/amnezia-vpn/amneziawg-go/v3/device"
 	"github.com/vishvananda/netlink"
 )
 
@@ -92,6 +92,10 @@ func (t *Tunnel) resolveEndpoints(strict bool) error {
 func (t *Tunnel) startDevice() error {
 	eng, err := startEngine(t.config.mtu())
 	if err != nil {
+		var he *HelperError
+		if errors.As(err, &he) {
+			return err
+		}
 		return fail("Cannot create %s: %v", ifaceName, err)
 	}
 	uapi, err := t.config.uapi(fwmark, t.endpoints)
@@ -242,13 +246,13 @@ func (t *Tunnel) kick(reason string) {
 	if err := t.eng.set(b.String()); err != nil {
 		log("kick: set endpoints: %v", err)
 	}
-	var peers []device.NoisePublicKey
+	var peers []noiseKey
 	for _, p := range t.config.Peers {
 		raw, err := base64.StdEncoding.DecodeString(peerValue(p, "PublicKey"))
 		if err != nil || len(raw) != 32 {
 			continue
 		}
-		var pk device.NoisePublicKey
+		var pk noiseKey
 		copy(pk[:], raw)
 		peers = append(peers, pk)
 	}

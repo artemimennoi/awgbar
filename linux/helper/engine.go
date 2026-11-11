@@ -14,17 +14,13 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
-	"github.com/amnezia-vpn/amneziawg-go/v3/device"
-	"github.com/amnezia-vpn/amneziawg-go/v3/ipc"
-	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 )
 
 // engine is the userspace tunnel behind awgbar0: awgcore, our own core in Rust, as a process of
-// its own that the helper talks UAPI to, or amneziawg-go built into the helper, the fallback. The
-// package decides which: awgcore when it ships /usr/lib/awgbar/awgcore, amneziawg-go when it does
-// not (`make deb USERSPACE=amneziawg-go`) or when the CPU cannot run it (cpuRunsAwgcore).
+// its own that the helper talks UAPI to. A helper built with the amneziawg_go tag
+// (`make deb USERSPACE=amneziawg-go`, engine_go.go) has amneziawg-go inside as well and runs it
+// when the package ships no awgcore or the CPU cannot run it; the default build has no
+// amneziawg-go and refuses to connect on such a CPU (unsupportedCPU).
 type engine interface {
 	name() string
 	// set and get are UAPI, as `awg set` and `awg show` speak it.
@@ -33,20 +29,25 @@ type engine interface {
 	// up starts the device once awgbar0 is configured.
 	up() error
 	// kick is what a reconnect needs besides new endpoints: a fresh socket and a handshake.
-	kick(peers []device.NoisePublicKey)
+	kick(peers []noiseKey)
 	close()
 }
 
 var awgcorePath = envOr("AWGBAR_AWGCORE", "/usr/lib/awgbar/awgcore")
 
-func useAwgcore() bool {
+// noiseKey is a peer's public key, as the engines take it.
+type noiseKey [32]byte
+
+func haveAwgcore() bool {
 	fi, err := os.Stat(awgcorePath)
-	return err == nil && fi.Mode().IsRegular() && cpuRunsAwgcore()
+	return err == nil && fi.Mode().IsRegular()
 }
+
+func useAwgcore() bool { return haveAwgcore() && cpuRunsAwgcore() }
 
 // On amd64 awgcore is built for x86-64-v3 (AVX2 and the rest in every function: RustCrypto's
 // AVX2 code is only fast that way, linux/Makefile). On a CPU without those it would die at its
-// first such instruction, again at every restart, so the helper runs amneziawg-go there. The
+// first such instruction, again at every restart, so the helper never starts it there. The
 // kernel lists in /proc/cpuinfo only what the CPU has and the system enabled (AVX needs XSAVE).
 var (
 	cpuinfoPath = "/proc/cpuinfo"
@@ -66,8 +67,12 @@ func cpuRunsAwgcore() bool {
 	cpuOnce.Do(func() {
 		cpuMissing = missingFlags(cpuinfoPath, x86v3Flags)
 		if len(cpuMissing) > 0 {
-			fmt.Fprintf(os.Stderr, "awgcore needs an x86-64-v3 CPU (this one lacks %s): using amneziawg-go\n",
-				strings.Join(cpuMissing, " "))
+			then := "this processor is not supported"
+			if builtinGo {
+				then = "using amneziawg-go"
+			}
+			fmt.Fprintf(os.Stderr, "awgcore needs an x86-64-v3 CPU (this one lacks %s): %s\n",
+				strings.Join(cpuMissing, " "), then)
 		}
 	})
 	return len(cpuMissing) == 0
@@ -99,11 +104,34 @@ func missingFlags(path string, want []string) []string {
 	return missing
 }
 
+// unsupportedCPU names what is missing, for `version` and for a refused connect; empty when this
+// helper can run a tunnel here.
+func unsupportedCPU() string {
+	if builtinGo || cpuRunsAwgcore() {
+		return ""
+	}
+	return strings.Join(cpuMissing, " ")
+}
+
 func startEngine(mtu int) (engine, error) {
 	if useAwgcore() {
 		return startCore()
 	}
-	return startGo(mtu)
+	if builtinGo {
+		return startGo(mtu)
+	}
+	if missing := unsupportedCPU(); missing != "" {
+		return nil, cpuError(missing)
+	}
+	return nil, errors.New("awgcore is missing: " + awgcorePath)
+}
+
+// cpuError is the refusal the app words itself (code "unsupported-cpu").
+func cpuError(missing string) error {
+	return &HelperError{
+		Message: "This processor is not supported: AWG Bar needs x86-64-v3 (missing: " + missing + ")",
+		Code:    "unsupported-cpu",
+	}
 }
 
 // MARK: awgcore
@@ -228,7 +256,7 @@ func (c *coreEngine) up() error { return nil }
 // awgcore keeps its socket off the tunnel by itself (fwmark and the interface its route leaves
 // by), follows network changes over netlink, rebuilds its socket after any error and starts a
 // handshake after 20 s without replies. The new endpoints the kick sets are all it needs.
-func (c *coreEngine) kick([]device.NoisePublicKey) {}
+func (c *coreEngine) kick([]noiseKey) {}
 
 func (c *coreEngine) exited() bool {
 	select {
@@ -252,76 +280,4 @@ func (c *coreEngine) close() {
 		_ = c.cmd.Process.Kill()
 		<-c.done
 	}
-}
-
-// MARK: amneziawg-go in-process, the fallback
-
-type goEngine struct {
-	dev  *device.Device
-	uapi net.Listener
-}
-
-func startGo(mtu int) (*goEngine, error) {
-	tdev, err := tun.CreateTUN(ifaceName, mtu)
-	if err != nil {
-		return nil, err
-	}
-	logger := &device.Logger{
-		Verbosef: func(format string, args ...any) { log("awg: "+format, args...) },
-		Errorf:   func(format string, args ...any) { log("awg error: "+format, args...) },
-	}
-	g := &goEngine{dev: device.NewDevice(tdev, conn.NewDefaultBind(), logger)}
-	g.listenUAPI()
-	return g, nil
-}
-
-func (g *goEngine) name() string { return "amneziawg-go" }
-
-func (g *goEngine) set(uapi string) error { return g.dev.IpcSet(uapi) }
-
-func (g *goEngine) get() (string, error) { return g.dev.IpcGet() }
-
-func (g *goEngine) up() error { return g.dev.Up() }
-
-func (g *goEngine) kick(peers []device.NoisePublicKey) {
-	if err := g.dev.BindUpdate(); err != nil {
-		log("kick: rebind: %v", err)
-	}
-	for _, pk := range peers {
-		if peer := g.dev.LookupPeer(pk); peer != nil {
-			_ = peer.SendHandshakeInitiation(false)
-		}
-	}
-}
-
-// listenUAPI exposes the usual /var/run/amneziawg/awgbar0.sock, so `awg show awgbar0` works for
-// debugging. Best effort.
-func (g *goEngine) listenUAPI() {
-	file, err := ipc.UAPIOpen(ifaceName)
-	if err != nil {
-		return
-	}
-	l, err := ipc.UAPIListen(ifaceName, file)
-	if err != nil {
-		return
-	}
-	g.uapi = l
-	dev := g.dev
-	go func() {
-		for {
-			c, err := l.Accept()
-			if err != nil {
-				return
-			}
-			go dev.IpcHandle(c)
-		}
-	}()
-}
-
-func (g *goEngine) close() {
-	if g.uapi != nil {
-		g.uapi.Close()
-	}
-	// Closing the TUN deletes awgbar0 and with it the routes via it.
-	g.dev.Close()
 }

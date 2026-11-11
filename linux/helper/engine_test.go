@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -141,35 +142,59 @@ func TestMissingFlags(t *testing.T) {
 	}
 }
 
-// The package and the CPU decide the engine: awgcore when its binary is there and, on amd64, the
-// CPU is x86-64-v3; amneziawg-go otherwise.
+// The package and the CPU decide: awgcore when its binary is there and, on amd64, the CPU is
+// x86-64-v3; otherwise the unsupported-CPU refusal, which `version` reports and `up` returns
+// before anything is set up. A helper built with the amneziawg_go tag runs amneziawg-go instead.
 func TestEngineChoice(t *testing.T) {
 	oldPath, oldInfo, oldArch := awgcorePath, cpuinfoPath, goarch
 	t.Cleanup(func() {
 		awgcorePath, cpuinfoPath, goarch = oldPath, oldInfo, oldArch
 		cpuOnce, cpuMissing = sync.Once{}, nil
 	})
-	choose := func(arch, flags string) bool {
+	on := func(arch, flags string) {
 		goarch, cpuinfoPath = arch, writeCpuinfo(t, flags)
 		cpuOnce, cpuMissing = sync.Once{}, nil
-		return useAwgcore()
 	}
 	awgcorePath = filepath.Join(t.TempDir(), "awgcore")
-	if choose("amd64", cpuHaswell) {
-		t.Fatal("no binary, yet awgcore")
+	on("amd64", cpuHaswell)
+	if useAwgcore() || unsupportedCPU() != "" {
+		t.Fatal("no binary on a v3 CPU: neither awgcore nor a CPU refusal")
 	}
 	if err := os.WriteFile(awgcorePath, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if !choose("amd64", cpuHaswell) {
+	on("amd64", cpuHaswell)
+	if !useAwgcore() || unsupportedCPU() != "" {
 		t.Fatal("binary there on an x86-64-v3 CPU, yet not awgcore")
 	}
-	for _, flags := range []string{cpuSandy, cpuRosetta} {
-		if choose("amd64", flags) {
-			t.Fatalf("awgcore on a CPU without x86-64-v3: %s", flags)
+	for _, c := range []struct{ flags, missing string }{
+		{cpuSandy, "avx2 bmi1 bmi2 f16c fma abm movbe"},
+		{cpuRosetta, "avx avx2 bmi2 abm xsave"},
+	} {
+		on("amd64", c.flags)
+		if useAwgcore() {
+			t.Fatalf("awgcore on a CPU without x86-64-v3, lacking %s", c.missing)
+		}
+		if builtinGo {
+			if got := unsupportedCPU(); got != "" {
+				t.Errorf("a helper with amneziawg-go refuses: %q", got)
+			}
+			continue
+		}
+		if got := unsupportedCPU(); got != c.missing {
+			t.Errorf("version reports %q, want %q", got, c.missing)
+		}
+		var he *HelperError
+		if err := up("anything"); !errors.As(err, &he) || he.Code != "unsupported-cpu" {
+			t.Errorf("up: %v, want the unsupported-cpu refusal", err)
+		}
+		if _, err := startEngine(1280); !errors.As(err, &he) || he.Code != "unsupported-cpu" ||
+			!strings.Contains(he.Message, c.missing) {
+			t.Errorf("startEngine: %v, want the unsupported-cpu refusal naming %s", err, c.missing)
 		}
 	}
-	if !choose("arm64", "") {
+	on("arm64", "")
+	if !useAwgcore() || unsupportedCPU() != "" {
 		t.Fatal("arm64 checks no x86 flags, yet not awgcore")
 	}
 }
