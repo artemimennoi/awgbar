@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -98,18 +99,77 @@ func TestCoreBackoff(t *testing.T) {
 	}
 }
 
-// The package decides the engine: awgcore when its binary is there, amneziawg-go otherwise.
+// Flags lines of /proc/cpuinfo, shortened: a Haswell (x86-64-v3), a Sandy Bridge (AVX, no AVX2),
+// and one like Rosetta's in an x86_64 Linux machine on Apple Silicon (FMA, no AVX, AVX2, BMI2).
+const (
+	cpuHaswell = "fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand lahf_lm abm fsgsbase bmi1 avx2 smep bmi2 erms invpcid"
+	cpuSandy   = "fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx rdtscp lm constant_tsc pni pclmulqdq ssse3 cx16 pcid sse4_1 sse4_2 x2apic popcnt aes xsave avx lahf_lm"
+	cpuRosetta = "fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx lm constant_tsc pni pclmulqdq ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes f16c lahf_lm bmi1"
+)
+
+func writeCpuinfo(t *testing.T, flags string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "cpuinfo")
+	body := "processor\t: 0\nvendor_id\t: GenuineIntel\nflags\t\t: " + flags + "\nbugs\t\t:\n\nprocessor\t: 1\nflags\t\t: " + flags + "\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestMissingFlags(t *testing.T) {
+	for _, c := range []struct {
+		name, flags string
+		missing     string
+	}{
+		{"haswell", cpuHaswell, ""},
+		{"sandy bridge", cpuSandy, "avx2 bmi1 bmi2 f16c fma abm movbe"},
+		{"rosetta", cpuRosetta, "avx avx2 bmi2 abm xsave"},
+	} {
+		got := strings.Join(missingFlags(writeCpuinfo(t, c.flags), x86v3Flags), " ")
+		if got != c.missing {
+			t.Errorf("%s: missing %q, want %q", c.name, got, c.missing)
+		}
+	}
+	if got := missingFlags(filepath.Join(t.TempDir(), "none"), x86v3Flags); len(got) != len(x86v3Flags) {
+		t.Errorf("no file: missing %v, want all", got)
+	}
+	arm := filepath.Join(t.TempDir(), "arm")
+	_ = os.WriteFile(arm, []byte("processor\t: 0\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32\n"), 0o644)
+	if got := missingFlags(arm, x86v3Flags); len(got) != len(x86v3Flags) {
+		t.Errorf("no flags line: missing %v, want all", got)
+	}
+}
+
+// The package and the CPU decide the engine: awgcore when its binary is there and, on amd64, the
+// CPU is x86-64-v3; amneziawg-go otherwise.
 func TestEngineChoice(t *testing.T) {
-	old := awgcorePath
-	t.Cleanup(func() { awgcorePath = old })
+	oldPath, oldInfo, oldArch := awgcorePath, cpuinfoPath, goarch
+	t.Cleanup(func() {
+		awgcorePath, cpuinfoPath, goarch = oldPath, oldInfo, oldArch
+		cpuOnce, cpuMissing = sync.Once{}, nil
+	})
+	choose := func(arch, flags string) bool {
+		goarch, cpuinfoPath = arch, writeCpuinfo(t, flags)
+		cpuOnce, cpuMissing = sync.Once{}, nil
+		return useAwgcore()
+	}
 	awgcorePath = filepath.Join(t.TempDir(), "awgcore")
-	if useAwgcore() {
+	if choose("amd64", cpuHaswell) {
 		t.Fatal("no binary, yet awgcore")
 	}
 	if err := os.WriteFile(awgcorePath, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if !useAwgcore() {
-		t.Fatal("binary there, yet not awgcore")
+	if !choose("amd64", cpuHaswell) {
+		t.Fatal("binary there on an x86-64-v3 CPU, yet not awgcore")
+	}
+	for _, flags := range []string{cpuSandy, cpuRosetta} {
+		if choose("amd64", flags) {
+			t.Fatalf("awgcore on a CPU without x86-64-v3: %s", flags)
+		}
+	}
+	if !choose("arm64", "") {
+		t.Fatal("arm64 checks no x86 flags, yet not awgcore")
 	}
 }

@@ -28,7 +28,8 @@ QT6_IMAGE := debian:13
 # The userspace tunnel. awgcore, our own core in Rust, runs as a process of its own that the
 # helper starts and talks UAPI to; amneziawg-go, the fallback, is built into the helper. The helper
 # runs awgcore whenever the package ships it (/usr/lib/awgbar/awgcore), so the fallback package is
-# the same helper without it.
+# the same helper without it. awgcore is built for x86-64-v3 (AVX2); on a CPU without it the helper
+# runs amneziawg-go.
 USERSPACE   ?= awgcore
 AWGCORE_URL ?= https://github.com/artemimennoi/awgcore
 AWGCORE_REV ?= eebf3502dc68e4a161817f08c0fb7aae095f59a6

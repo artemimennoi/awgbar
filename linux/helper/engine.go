@@ -7,8 +7,10 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -22,7 +24,7 @@ import (
 // engine is the userspace tunnel behind awgbar0: awgcore, our own core in Rust, as a process of
 // its own that the helper talks UAPI to, or amneziawg-go built into the helper, the fallback. The
 // package decides which: awgcore when it ships /usr/lib/awgbar/awgcore, amneziawg-go when it does
-// not (`make deb USERSPACE=amneziawg-go`).
+// not (`make deb USERSPACE=amneziawg-go`) or when the CPU cannot run it (cpuRunsAwgcore).
 type engine interface {
 	name() string
 	// set and get are UAPI, as `awg set` and `awg show` speak it.
@@ -39,7 +41,62 @@ var awgcorePath = envOr("AWGBAR_AWGCORE", "/usr/lib/awgbar/awgcore")
 
 func useAwgcore() bool {
 	fi, err := os.Stat(awgcorePath)
-	return err == nil && fi.Mode().IsRegular()
+	return err == nil && fi.Mode().IsRegular() && cpuRunsAwgcore()
+}
+
+// On amd64 awgcore is built for x86-64-v3 (AVX2 and the rest in every function: RustCrypto's
+// AVX2 code is only fast that way, linux/Makefile). On a CPU without those it would die at its
+// first such instruction, again at every restart, so the helper runs amneziawg-go there. The
+// kernel lists in /proc/cpuinfo only what the CPU has and the system enabled (AVX needs XSAVE).
+var (
+	cpuinfoPath = "/proc/cpuinfo"
+	goarch      = runtime.GOARCH
+	x86v3Flags  = []string{
+		"cx16", "lahf_lm", "popcnt", "sse4_1", "sse4_2", "ssse3", // x86-64-v2
+		"avx", "avx2", "bmi1", "bmi2", "f16c", "fma", "abm", "movbe", "xsave", // v3; abm is LZCNT
+	}
+	cpuOnce    sync.Once
+	cpuMissing []string
+)
+
+func cpuRunsAwgcore() bool {
+	if goarch != "amd64" {
+		return true
+	}
+	cpuOnce.Do(func() {
+		cpuMissing = missingFlags(cpuinfoPath, x86v3Flags)
+		if len(cpuMissing) > 0 {
+			fmt.Fprintf(os.Stderr, "awgcore needs an x86-64-v3 CPU (this one lacks %s): using amneziawg-go\n",
+				strings.Join(cpuMissing, " "))
+		}
+	})
+	return len(cpuMissing) == 0
+}
+
+// missingFlags returns the flags of want that the first "flags" line of a cpuinfo file lacks,
+// all of them when the file cannot be read or has no such line.
+func missingFlags(path string, want []string) []string {
+	have := map[string]bool{}
+	if f, err := os.Open(path); err == nil {
+		s := bufio.NewScanner(f)
+		s.Buffer(make([]byte, 0, 64<<10), 1<<20)
+		for s.Scan() {
+			if k, v, ok := strings.Cut(s.Text(), ":"); ok && strings.TrimSpace(k) == "flags" {
+				for _, fl := range strings.Fields(v) {
+					have[fl] = true
+				}
+				break
+			}
+		}
+		f.Close()
+	}
+	var missing []string
+	for _, w := range want {
+		if !have[w] {
+			missing = append(missing, w)
+		}
+	}
+	return missing
 }
 
 func startEngine(mtu int) (engine, error) {

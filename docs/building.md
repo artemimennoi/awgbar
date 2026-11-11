@@ -41,8 +41,8 @@ changing the icon run `make icon` with Xcode installed.
 
 Needs Go and Docker, and GitHub credentials that can read `artemimennoi/awgcore` (private): each
 package's app is built in a container of the oldest distribution it targets (Ubuntu 22.04 for qt5,
-Debian 13 for qt6), and awgcore, the userspace tunnel, in an Ubuntu 22.04 container, so one binary
-runs under both (its repository pins the Rust toolchain, which the container downloads once into
+Debian 13 for qt6), and awgcore, the userspace tunnel, in an Ubuntu 22.04 container for x86-64-v3,
+so one binary runs under both (its repository pins the Rust toolchain, which the container downloads once into
 `linux/build/rust-<arch>`, and vendors every crate).
 
 ```bash

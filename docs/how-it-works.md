@@ -110,8 +110,10 @@ moves to another network, the VPN comes back by itself.
   interface its route takes outside the tunnel, so the tunnel can never loop into itself; it follows
   network changes over netlink, rebuilds its socket after any error and starts a handshake after
   20 s without replies, each logged to the journal (`journalctl -u awgbar-helper`, or
-  `-t awgcore`). The fallback package (`make deb USERSPACE=amneziawg-go`) runs `amneziawg-go`
-  inside the helper instead.
+  `-t awgcore`). awgcore is built for x86-64-v3, a CPU with AVX2 (Intel Core since 2013, AMD
+  since 2015, not every Pentium, Celeron or Atom); on one without it the helper runs `amneziawg-go`
+  inside itself instead and says so in the journal, as the fallback package (`make deb
+  USERSPACE=amneziawg-go`) always does.
 - The kill switch is an nftables table, `inet awgbar`. Marked packets always pass, so it never
   blocks the reconnect.
 - DNS: with systemd-resolved the servers sit on `awgbar0` with the `~.` routing domain and other
