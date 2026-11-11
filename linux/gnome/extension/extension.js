@@ -231,6 +231,9 @@ class Indicator extends PanelMenu.Button {
         this._store = new Store(this._settings);
         this._store.onChanged(() => this._sync());
         this.menu.connect('open-state-changed', (_menu, open) => {
+            // Also emitted while the menu is destroyed with the indicator.
+            if (!this._store)
+                return;
             this._store.wantStats = open;
             if (open) {
                 this._store.refresh();
@@ -336,7 +339,8 @@ class Indicator extends PanelMenu.Button {
         this._problem = new St.BoxLayout({orientation: VERTICAL, style_class: 'awgbar-problem', x_expand: true});
         this._problemTitle = new St.Label({style_class: 'awgbar-problem-title'});
         this._problemTitle.clutter_text.line_wrap = true;
-        this._problemHint = new St.Label({style_class: 'awgbar-problem-hint', text: _('Start it with:')});
+        this._problemHint = new St.Label({style_class: 'awgbar-problem-hint'});
+        this._problemHint.clutter_text.line_wrap = true;
         this._problemCommand = new St.Entry({
             style_class: 'awgbar-problem-command',
             text: 'sudo systemctl enable --now awgbar-helper',
@@ -418,15 +422,20 @@ class Indicator extends PanelMenu.Button {
             active ? _('Disconnect') : _('Connect'));
 
         // Helper problems replace the power button, the tunnels and Bypass.
-        const problem = store.helper === Helper.UNREACHABLE || store.helper === Helper.DENIED;
+        const problem = [Helper.UNREACHABLE, Helper.DENIED, Helper.UNSUPPORTED].includes(store.helper);
         this._main.visible = !problem;
         this._problem.visible = problem;
         if (problem) {
             const unreachable = store.helper === Helper.UNREACHABLE;
-            this._problemTitle.text = unreachable ? _('The AWG Bar service is not running') : _('Not allowed to control the VPN');
-            this._problemHint.visible = unreachable;
+            const unsupported = store.helper === Helper.UNSUPPORTED;
+            this._problemTitle.text = unreachable ? _('The AWG Bar service is not running')
+                : unsupported ? _('This processor is not supported') : _('Not allowed to control the VPN');
+            this._problemHint.text = unsupported
+                ? _('AWG Bar needs a processor with AVX2 (x86-64-v3): Intel Core from 2013 (4th generation) on, or AMD from 2015 on. Many Pentium, Celeron and Atom processors lack it.')
+                : _('Start it with:');
+            this._problemHint.visible = unreachable || unsupported;
             this._problemCommand.visible = unreachable;
-            this._problemDetail.text = store.helperProblem;
+            this._problemDetail.text = unsupported ? format(_('Missing: %s'), store.helperProblem) : store.helperProblem;
         }
 
         this._syncTunnels();
@@ -629,9 +638,10 @@ class Indicator extends PanelMenu.Button {
     _onDestroy() {
         this._dialog?.close();
         this._dialog = null;
+        // The menu goes first: closing it still talks to the store.
+        super._onDestroy();
         this._store.destroy();
         this._store = null;
-        super._onDestroy();
     }
 });
 

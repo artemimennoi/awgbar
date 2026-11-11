@@ -21,7 +21,8 @@ mkdir -p "$src/licenses/licenses"
 pkg=/src/linux/packaging
 
 install -m755 "/src/linux/build/awgbar-helper-$arch" "$src/awgbar-helper"
-# The helper runs awgcore when it is there, amneziawg-go built into it when it is not.
+# The default package: awgcore, and a helper without amneziawg-go. USERSPACE=amneziawg-go: no
+# awgcore, a helper with amneziawg-go built in.
 if [ "$userspace" = awgcore ]; then
     install -m755 "/src/linux/build/awgcore-$arch" "$src/awgcore"
     tunnel="awgcore, our own AmneziaWG core, as a process of its own"

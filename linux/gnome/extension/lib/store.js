@@ -12,6 +12,8 @@ export const Helper = Object.freeze({
     UNREACHABLE: 'unreachable',
     DENIED: 'denied',
     OUTDATED: 'outdated',
+    // This helper can't run a tunnel on this CPU; helperProblem names the flags it lacks.
+    UNSUPPORTED: 'unsupported',
 });
 
 // The protocol version this extension speaks; older helpers get a "reinstall" notice.
@@ -134,14 +136,21 @@ export class Store {
             return;
         this._refreshing = true;
         try {
-            if (!this.usable) {
-                const version = await this._send(request('version'));
-                if (!version.ok) {
-                    this._unusable(version);
-                    return;
-                }
-                this.helper = (version.json.version ?? 0) < requiredHelperVersion ? Helper.OUTDATED : Helper.READY;
+            // Every time, as the Qt app does: a package switch restarts the helper under us, and
+            // only `version` says whether it can run a tunnel on this CPU.
+            const version = await this._send(request('version'));
+            if (!version.ok) {
+                this._unusable(version);
+                return;
             }
+            if (version.json.unsupportedCpu) {
+                this.helper = Helper.UNSUPPORTED;
+                this.helperProblem = version.json.unsupportedCpu;
+                this.tunnels = [];
+                this.stats = null;
+                return;
+            }
+            this.helper = (version.json.version ?? 0) < requiredHelperVersion ? Helper.OUTDATED : Helper.READY;
             const list = await this._send(request('list'));
             if (!list.ok) {
                 if (list.transportError || list.code === 'denied')

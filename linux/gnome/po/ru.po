@@ -83,6 +83,15 @@ msgstr "Запусти её командой:"
 msgid "Not allowed to control the VPN"
 msgstr "Нет прав управлять VPN"
 
+msgid "This processor is not supported"
+msgstr "Этот процессор не поддерживается"
+
+msgid "AWG Bar needs a processor with AVX2 (x86-64-v3): Intel Core from 2013 (4th generation) on, or AMD from 2015 on. Many Pentium, Celeron and Atom processors lack it."
+msgstr "AWG Bar нужен процессор с AVX2 (x86-64-v3): Intel Core с 2013 года (4-е поколение) и новее или AMD с 2015 года. У многих Pentium, Celeron и Atom его нет."
+
+msgid "Missing: %s"
+msgstr "Не хватает: %s"
+
 msgid "The AWG Bar service is outdated; reinstall the package"
 msgstr "Служба AWG Bar устарела, переустанови пакет"
 

@@ -108,10 +108,17 @@ class Window {
 
     async _refresh() {
         const version = await this._client.send(request('version'));
+        const unsupported = version.ok ? version.json.unsupportedCpu ?? '' : '';
         const list = version.ok ? await this._client.send(request('list')) : version;
-        this._usable = list.ok;
+        // Tunnels can still be added and listed; the menu says why none connects.
+        this._usable = list.ok && !unsupported;
+        if (unsupported) {
+            this._problemRow.title = _('This processor is not supported');
+            this._problemRow.subtitle = `${_('AWG Bar needs a processor with AVX2 (x86-64-v3): Intel Core from 2013 (4th generation) on, or AMD from 2015 on. Many Pentium, Celeron and Atom processors lack it.')}\n${format(_('Missing: %s'), unsupported)}`;
+            this._problem.visible = true;
+        }
         if (list.ok) {
-            this._problem.visible = false;
+            this._problem.visible = unsupported !== '';
             this._apply(list.json);
         } else {
             const unreachable = list.code !== 'denied';

@@ -25,6 +25,8 @@ export class HelperReply {
     get error() {
         if (this.transportError)
             return this.transportError;
+        if (this.code === 'unsupported-cpu')
+            return _('This processor is not supported');
         return this.json.error || _('Helper error');
     }
 
