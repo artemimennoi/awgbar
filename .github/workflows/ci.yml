@@ -61,6 +61,30 @@ jobs:
           path: linux/build/dist/*.deb
           retention-days: 7
 
+  fedora-package:
+    name: Fedora package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: linux/go.mod
+          cache-dependency-path: linux/go.sum
+      # Built on the oldest Fedora it targets; the build also checks the GNOME Shell extension's
+      # schema and that every string it shows has a Russian translation. The amneziawg-go
+      # fallback, for the same reason as the .deb.
+      - run: make -C linux rpm ARCH=amd64 USERSPACE=amneziawg-go
+      # Its dependencies resolve on the newest Fedora too.
+      - name: install on Fedora 45
+        run: |
+          docker run --rm -v "$PWD/linux/build/dist:/dist:ro" fedora:45 bash -c \
+            'dnf -y -q --setopt=install_weak_deps=False install /dist/*.rpm >/dev/null && rpm -V awgbar && rpm -q awgbar'
+      - uses: actions/upload-artifact@v7
+        with:
+          name: awgbar-fedora-amd64
+          path: linux/build/dist/*.rpm
+          retention-days: 7
+
   macos:
     name: macOS app
     runs-on: macos-26

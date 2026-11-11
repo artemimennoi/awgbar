@@ -4,6 +4,8 @@
 #
 #   make deb             both packages, amd64 (the only Linux architecture shipped)
 #   make deb USERSPACE=amneziawg-go     the fallback: amneziawg-go in the helper, no awgcore
+#   make rpm             the Fedora package: the helper and the GNOME Shell extension (gnome/),
+#                        no Qt app; USERSPACE works the same
 #   make test            helper unit tests, run in a Linux container
 #
 # Two packages per architecture, so that KDE's Breeze style applies (it exists only for the
@@ -24,6 +26,8 @@ PKG_VERSION ?= $(VERSION)
 
 QT5_IMAGE := ubuntu:22.04
 QT6_IMAGE := debian:13
+# Fedora Workstation 43 (GNOME 49) to 45 (GNOME 51), built on the oldest.
+RPM_IMAGE := fedora:43
 
 # The userspace tunnel. awgcore, our own core in Rust, runs as a process of its own that the
 # helper starts and talks UAPI to. It is built for x86-64-v3 (AVX2); on a CPU without it the helper
@@ -51,7 +55,7 @@ endif
 GO_MODULES = GOOS=linux GOARCH=$(ARCH) go list -deps -tags '$(GO_TAGS)' \
              -f '{{with .Module}}{{if not .Main}}{{.Path}}{{end}}{{end}}' ./helper | sort -u
 
-.PHONY: all helper licenses awgcore deb deb-qt5 deb-qt6 test clean
+.PHONY: all helper licenses awgcore deb deb-qt5 deb-qt6 rpm test clean
 
 all: deb
 
@@ -97,6 +101,10 @@ deb-qt5: helper licenses $(CORE_DEP)
 deb-qt6: helper licenses $(CORE_DEP)
 	docker run --rm --platform linux/$(ARCH) -v "$(CURDIR)/..:/src" $(QT6_IMAGE) \
 		bash /src/linux/packaging/build-deb.sh qt6 $(PKG_VERSION) /src/linux/$(DIST) $(USERSPACE)
+
+rpm: helper licenses $(CORE_DEP)
+	docker run --rm --platform linux/$(ARCH) -v "$(CURDIR)/..:/src" $(RPM_IMAGE) \
+		bash /src/linux/packaging/rpm/build-rpm.sh $(PKG_VERSION) /src/linux/$(DIST) $(USERSPACE)
 
 test:
 	mkdir -p $(BUILD)
