@@ -38,6 +38,12 @@ static const QHash<QString, QString> &russian()
         {QStringLiteral("The AWG Bar service is not running"), QStringLiteral("Служба AWG Bar не запущена")},
         {QStringLiteral("Start it with:"), QStringLiteral("Запусти её командой:")},
         {QStringLiteral("Not allowed to control the VPN"), QStringLiteral("Нет прав управлять VPN")},
+        {QStringLiteral("This processor is not supported"), QStringLiteral("Этот процессор не поддерживается")},
+        {QStringLiteral("AWG Bar needs a processor with AVX2 (x86-64-v3): Intel Core from 2013 (4th generation) on, "
+                        "or AMD from 2015 on. Many Pentium, Celeron and Atom processors lack it."),
+         QStringLiteral("AWG Bar нужен процессор с AVX2 (x86-64-v3): Intel Core с 2013 года (4-е поколение) "
+                        "и новее или AMD с 2015 года. У многих Pentium, Celeron и Atom его нет.")},
+        {QStringLiteral("Missing: %1"), QStringLiteral("Не хватает: %1")},
         {QStringLiteral("The AWG Bar service is outdated; reinstall the package"),
          QStringLiteral("Служба AWG Bar устарела, переустанови пакет")},
         // Settings menu
