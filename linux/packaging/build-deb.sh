@@ -65,6 +65,10 @@ echo "Source: awgbar" > "$build/shlibs/debian/control"
 binaries=("$root/usr/bin/awgbar")
 [ -f "$root/usr/lib/awgbar/awgcore" ] && binaries+=("$root/usr/lib/awgbar/awgcore")
 depends=$(cd "$build/shlibs" && dpkg-shlibdeps -O "${binaries[@]}" 2>/dev/null | sed -n 's/^shlibs:Depends=//p')
+# The icons (the theme's and ours) are SVG, which Qt draws only through its SVG plugins, a
+# package of their own that a desktop without other Qt apps may lack: without it the buttons are
+# blank.
+if [ "$flavor" = qt5 ]; then depends="$depends, libqt5svg5"; else depends="$depends, qt6-svg-plugins"; fi
 
 mkdir -p "$root/DEBIAN"
 for script in postinst prerm postrm; do
