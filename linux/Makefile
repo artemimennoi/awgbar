@@ -5,7 +5,7 @@
 #   make deb             both packages, amd64 (the only Linux architecture shipped)
 #   make deb USERSPACE=amneziawg-go     the fallback: amneziawg-go in the helper, no awgcore
 #   make rpm             the Fedora package: the helper and the GNOME Shell extension (gnome/),
-#                        no Qt app; USERSPACE works the same
+#                        no Qt app (CI builds it with USERSPACE=amneziawg-go, as the .deb)
 #   make test            helper unit tests, run in a Linux container
 #
 # Two packages per architecture, so that KDE's Breeze style applies (it exists only for the

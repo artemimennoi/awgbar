@@ -2,6 +2,7 @@
 # Builds the awgbar RPM for Fedora Workstation inside a container of the oldest Fedora the package
 # targets (see linux/Makefile). Run by `make -C linux rpm`, not by hand:
 #   build-rpm.sh <version> <out dir> [awgcore|amneziawg-go]
+# amneziawg-go is for CI only, which cannot fetch awgcore's private repository; nobody ships it.
 # Expects the repository at /src, the helper built at /src/linux/build/awgbar-helper-amd64, its Go
 # modules' licenses in /src/linux/build/licenses and, with awgcore (the default), awgcore at
 # /src/linux/build/awgcore-amd64 with its crates' licenses next to it.
@@ -21,13 +22,13 @@ mkdir -p "$src/licenses/licenses"
 pkg=/src/linux/packaging
 
 install -m755 "/src/linux/build/awgbar-helper-$arch" "$src/awgbar-helper"
-# The default package: awgcore, and a helper without amneziawg-go. USERSPACE=amneziawg-go: no
-# awgcore, a helper with amneziawg-go built in.
+# The package: awgcore, and a helper without amneziawg-go that refuses a CPU awgcore can't run on.
+# CI's build: no awgcore, amneziawg-go built into the helper.
 if [ "$userspace" = awgcore ]; then
     install -m755 "/src/linux/build/awgcore-$arch" "$src/awgcore"
     tunnel="awgcore, our own AmneziaWG core, as a process of its own"
 else
-    tunnel="amneziawg-go, built in"
+    tunnel="amneziawg-go, built in (a CI build)"
 fi
 
 # The .deb's unit, with the binaries in /usr/libexec/awgbar (why: awgbar.spec).
