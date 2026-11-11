@@ -39,14 +39,23 @@ changing the icon run `make icon` with Xcode installed.
 
 ## Linux
 
-Needs Go and Docker: each package's app is built in a container of the oldest distribution it
-targets (Ubuntu 22.04 for qt5, Debian 13 for qt6).
+Needs Go and Docker, and GitHub credentials that can read `artemimennoi/awgcore` (private): each
+package's app is built in a container of the oldest distribution it targets (Ubuntu 22.04 for qt5,
+Debian 13 for qt6), and awgcore, the userspace tunnel, in an Ubuntu 22.04 container for x86-64-v3,
+so one binary runs under both (its repository pins the Rust toolchain, which the container downloads once into
+`linux/build/rust-<arch>`, and vendors every crate).
 
 ```bash
 make -C linux deb              # linux/build/dist/awgbar_<version>_qt{5,6}_amd64.deb
-make -C linux deb ARCH=arm64
 make -C linux test             # helper unit tests in a container
 ```
+
+The default package's helper has no `amneziawg-go` in it: awgcore is the tunnel, and on a CPU
+without x86-64-v3 the helper refuses to connect and the app says why.
+`make -C linux deb USERSPACE=amneziawg-go` builds a package without awgcore whose helper has
+`amneziawg-go` built in (the Go build tag `amneziawg_go`); CI builds that one, having no
+credentials for awgcore, and runs the helper's tests with and without the tag. `AWGCORE_REV` in `linux/Makefile` pins
+awgcore; `PKG_VERSION` gives a local build its own package version.
 
 The helper also builds alone with `GOOS=linux go build ./helper` (in `linux/`), the app with CMake
 (`-DAWGBAR_QT=5` or `6`) against Qt Widgets and Network. The kill switch, routing and DNS need a

@@ -423,6 +423,16 @@ void Window::rebuild()
                                     m_store->helperProblem().toHtmlEscaped()));
         m_pages->setCurrentIndex(1);
         break;
+    case Store::Helper::Unsupported:
+        m_problem->setText(QStringLiteral("<b>%1</b><br><br>%2<br><br><span>%3</span>")
+                               .arg(L("This processor is not supported").toHtmlEscaped(),
+                                    L("AWG Bar needs a processor with AVX2 (x86-64-v3): Intel Core from 2013 "
+                                      "(4th generation) on, or AMD from 2015 on. Many Pentium, Celeron and Atom "
+                                      "processors lack it.")
+                                        .toHtmlEscaped(),
+                                    L("Missing: %1").arg(m_store->helperProblem()).toHtmlEscaped()));
+        m_pages->setCurrentIndex(1);
+        break;
     case Store::Helper::Checking:
     case Store::Helper::Ready:
     case Store::Helper::Outdated:

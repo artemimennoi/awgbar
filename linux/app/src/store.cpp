@@ -81,6 +81,16 @@ void Store::refresh()
             emit changed();
             return;
         }
+        const QString unsupported = reply.json.value(QStringLiteral("unsupportedCpu")).toString();
+        if (!unsupported.isEmpty()) {
+            m_refreshing = false;
+            m_tunnels.clear();
+            m_stats.reset();
+            m_helper = Helper::Unsupported;
+            m_helperProblem = unsupported;
+            emit changed();
+            return;
+        }
         m_helper = reply.json.value(QStringLiteral("version")).toInt() < requiredHelperVersion ? Helper::Outdated
                                                                                                 : Helper::Ready;
         send(request(QStringLiteral("list")), [this](const HelperReply &reply) {

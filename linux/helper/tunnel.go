@@ -2,28 +2,25 @@ package main
 
 import (
 	"encoding/base64"
+	"errors"
 	"net"
 	"net/netip"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
-	"github.com/amnezia-vpn/amneziawg-go/v3/device"
-	"github.com/amnezia-vpn/amneziawg-go/v3/ipc"
-	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 	"github.com/vishvananda/netlink"
 )
 
-// Tunnel is the one tunnel that is up: amneziawg-go running inside the helper on awgbar0,
-// plus the rules, routes and DNS around it.
+// Tunnel is the one tunnel that is up: the userspace tunnel on awgbar0 (awgcore as a process of
+// its own, or amneziawg-go inside the helper, see engine.go), plus the rules, routes and DNS
+// around it.
 type Tunnel struct {
 	name     string
 	config   *TunnelConfig
 	excluded []netip.Prefix
 
-	dev     *device.Device
-	uapi    net.Listener
+	eng     engine
 	ifindex int
 	dns     *dnsState
 	// Config Endpoint value ("vpn.example.com:51820") → resolved "ip:port".
@@ -36,6 +33,10 @@ type Tunnel struct {
 	lastRebuild time.Time
 	prevTx      int64
 	prevRx      int64
+	// awgcore restarts after it exited on its own, for the back-off.
+	coreRestarts []time.Time
+	// UAPI reads that failed in a row: a core that stopped answering is rebuilt.
+	getFailures int
 }
 
 func startTunnel(name string, c *TunnelConfig, excluded []netip.Prefix) (*Tunnel, error) {
@@ -89,74 +90,89 @@ func (t *Tunnel) resolveEndpoints(strict bool) error {
 }
 
 func (t *Tunnel) startDevice() error {
-	tdev, err := tun.CreateTUN(ifaceName, t.config.mtu())
+	eng, err := startEngine(t.config.mtu())
 	if err != nil {
+		var he *HelperError
+		if errors.As(err, &he) {
+			return err
+		}
 		return fail("Cannot create %s: %v", ifaceName, err)
 	}
-	logger := &device.Logger{
-		Verbosef: func(format string, args ...any) { log("awg: "+format, args...) },
-		Errorf:   func(format string, args ...any) { log("awg error: "+format, args...) },
-	}
-	dev := device.NewDevice(tdev, conn.NewDefaultBind(), logger)
 	uapi, err := t.config.uapi(fwmark, t.endpoints)
 	if err == nil {
-		err = dev.IpcSet(uapi)
+		err = eng.set(uapi)
 	}
 	if err != nil {
-		dev.Close()
-		return fail("amneziawg-go rejected the config: %v", err)
+		eng.close()
+		return fail("%s rejected the config: %v", eng.name(), err)
 	}
 	link, err := configureLink(t.config)
 	if err == nil {
 		err = addTunnelRoutes(t.config, link)
 	}
 	if err != nil {
-		dev.Close()
+		eng.close()
 		return fail("Cannot configure %s: %v", ifaceName, err)
 	}
-	if err := dev.Up(); err != nil {
-		dev.Close()
+	if err := eng.up(); err != nil {
+		eng.close()
 		return fail("Cannot start the tunnel: %v", err)
 	}
-	t.dev = dev
+	t.eng = eng
 	t.ifindex = link.Attrs().Index
-	t.listenUAPI()
+	if c, ok := eng.(*coreEngine); ok {
+		go t.watchCore(c)
+	}
 	return nil
 }
 
-// listenUAPI exposes the usual /var/run/amneziawg/awgbar0.sock, so `awg show awgbar0` works for
-// debugging. Best effort.
-func (t *Tunnel) listenUAPI() {
-	file, err := ipc.UAPIOpen(ifaceName)
-	if err != nil {
+// watchCore brings awgcore back if it exits on its own (a crash): the same rebuild as the
+// watchdog's, so the rules, the kill switch and DNS stay in place and nothing leaks meanwhile.
+// Restarts back off from 1 s to 30 s while it keeps exiting.
+func (t *Tunnel) watchCore(c *coreEngine) {
+	<-c.done
+	if c.stopping.Load() {
 		return
 	}
-	l, err := ipc.UAPIListen(ifaceName, file)
-	if err != nil {
+	mu.Lock()
+	if current != t || t.eng != c {
+		mu.Unlock()
 		return
 	}
-	t.uapi = l
-	dev := t.dev
-	go func() {
-		for {
-			c, err := l.Accept()
-			if err != nil {
-				return
-			}
-			go dev.IpcHandle(c)
+	log("%s: awgcore exited (%v), restarting it", t.name, c.err)
+	t.eng = nil
+	deleteLink()
+	delay := t.coreBackoff(time.Now())
+	mu.Unlock()
+	time.AfterFunc(delay, func() {
+		mu.Lock()
+		defer mu.Unlock()
+		if current != t || t.eng != nil {
+			return
 		}
-	}()
+		if err := t.rebuild(); err != nil {
+			log("restart awgcore: %v", err)
+		}
+	})
+}
+
+// coreBackoff counts a restart at now and says how long to wait before it: 1 s, doubling for
+// every other restart in the last minute, at most 30 s.
+func (t *Tunnel) coreBackoff(now time.Time) time.Duration {
+	recent := t.coreRestarts[:0]
+	for _, at := range t.coreRestarts {
+		if now.Sub(at) < time.Minute {
+			recent = append(recent, at)
+		}
+	}
+	t.coreRestarts = append(recent, now)
+	return min(time.Second<<min(len(recent), 5), 30*time.Second)
 }
 
 func (t *Tunnel) stopDevice() {
-	if t.uapi != nil {
-		t.uapi.Close()
-		t.uapi = nil
-	}
-	if t.dev != nil {
-		// Closing the TUN deletes awgbar0 and with it the routes via it.
-		t.dev.Close()
-		t.dev = nil
+	if t.eng != nil {
+		t.eng.close()
+		t.eng = nil
 	}
 	deleteLink()
 }
@@ -183,6 +199,7 @@ func (t *Tunnel) rebuild() error {
 	t.lastRebuild = time.Now()
 	t.stopDevice()
 	_ = t.resolveEndpoints(false)
+	t.getFailures = 0
 	if err := t.startDevice(); err != nil {
 		return err
 	}
@@ -205,7 +222,7 @@ func (st *dnsState) reapply(ifindex int) {
 // socket to the new network (dropping a cached source address that no longer exists) and start a
 // fresh handshake. Cheap, and harmless when nothing was wrong.
 func (t *Tunnel) kick(reason string) {
-	if t.dev == nil {
+	if t.eng == nil {
 		return
 	}
 	if defaultRoute(false) == nil && defaultRoute(true) == nil {
@@ -226,29 +243,33 @@ func (t *Tunnel) kick(reason string) {
 			b.WriteString("endpoint=" + ep + "\n")
 		}
 	}
-	if err := t.dev.IpcSet(b.String()); err != nil {
+	if err := t.eng.set(b.String()); err != nil {
 		log("kick: set endpoints: %v", err)
 	}
-	if err := t.dev.BindUpdate(); err != nil {
-		log("kick: rebind: %v", err)
-	}
+	var peers []noiseKey
 	for _, p := range t.config.Peers {
 		raw, err := base64.StdEncoding.DecodeString(peerValue(p, "PublicKey"))
 		if err != nil || len(raw) != 32 {
 			continue
 		}
-		var pk device.NoisePublicKey
+		var pk noiseKey
 		copy(pk[:], raw)
-		if peer := t.dev.LookupPeer(pk); peer != nil {
-			_ = peer.SendHandshakeInitiation(false)
-		}
+		peers = append(peers, pk)
 	}
+	t.eng.kick(peers)
 }
 
 // health runs every few seconds. It repairs what others may have changed (rules, DNS) and
 // escalates from kick to rebuild when the tunnel doesn't come back.
 func (t *Tunnel) health() {
-	if t.dev == nil {
+	if t.eng == nil {
+		// A rebuild that failed, or awgcore waiting for its restart: try again, at most once
+		// every 30 s, so a core that cannot start does not leave the tunnel down for good.
+		if time.Since(t.lastRebuild) > 30*time.Second && (defaultRoute(false) != nil || defaultRoute(true) != nil) {
+			if err := t.rebuild(); err != nil {
+				log("rebuild: %v", err)
+			}
+		}
 		return
 	}
 	if !rulesPresent(t.config) {
@@ -265,6 +286,13 @@ func (t *Tunnel) health() {
 	t.dns.check(t.ifindex)
 
 	stats := t.stats()
+	if t.getFailures >= 3 && time.Since(t.lastRebuild) > time.Minute {
+		log("%s stopped answering", t.eng.name())
+		if err := t.rebuild(); err != nil {
+			log("rebuild: %v", err)
+		}
+		return
+	}
 	now := time.Now()
 	handshake := time.Time{}
 	if stats.LastHandshake != nil {
@@ -301,13 +329,15 @@ func (t *Tunnel) health() {
 
 func (t *Tunnel) stats() TunnelStats {
 	var s TunnelStats
-	if t.dev == nil {
+	if t.eng == nil {
 		return s
 	}
-	text, err := t.dev.IpcGet()
+	text, err := t.eng.get()
 	if err != nil {
+		t.getFailures++
 		return s
 	}
+	t.getFailures = 0
 	var latest int64
 	for _, line := range strings.Split(text, "\n") {
 		key, value, _ := strings.Cut(line, "=")

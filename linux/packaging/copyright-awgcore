@@ -1,0 +1,11 @@
+
+Files: usr/lib/awgbar/awgcore
+Comment: awgcore, the userspace tunnel, from https://github.com/artemimennoi/awgcore (private, not
+ yet published), at the revision `awgcore --version` names. It links these Rust crates statically,
+ vendored in its repository at the versions its Cargo.lock pins: aead, blake2, block-buffer,
+ cfg-if, chacha20, chacha20poly1305, cipher, cmov, cpufeatures, crypto-common, ctutils, digest, hkdf,
+ hmac, hybrid-array, inout, libc, poly1305, rand_core, typenum, universal-hash and zeroize (MIT OR
+ Apache-2.0), fiat-crypto (MIT OR Apache-2.0 OR BSD-1-Clause), and curve25519-dalek, x25519-dalek
+ and subtle (BSD-3-Clause). Their license texts are in /usr/share/doc/awgbar/licenses/awgcore.
+Copyright: 2026 Artem Imennoi and the authors of the crates above
+License: the author's own for awgcore; MIT and Apache-2.0 and BSD-3-Clause for the crates

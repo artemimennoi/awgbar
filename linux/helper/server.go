@@ -92,6 +92,10 @@ func requireName(req *Request, mustExist bool) (string, error) {
 }
 
 func up(name string) error {
+	// Before anything is set up: nothing here can run a tunnel.
+	if missing := unsupportedCPU(); missing != "" {
+		return cpuError(missing)
+	}
 	c, err := loadConfig(name)
 	if err != nil {
 		return err
@@ -129,7 +133,7 @@ func down(forget bool) {
 func handle(req *Request) (*Response, error) {
 	switch req.Command {
 	case "version":
-		return &Response{OK: true, Version: helperVersion}, nil
+		return &Response{OK: true, Version: helperVersion, UnsupportedCPU: unsupportedCPU()}, nil
 
 	case "list":
 		return listResponse(), nil

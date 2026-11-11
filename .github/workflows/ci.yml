@@ -34,6 +34,9 @@ jobs:
           [ -z "$unformatted" ] || { echo "not gofmt'ed: $unformatted"; exit 1; }
       - run: go vet ./helper
       - run: go test ./helper
+      # The helper with amneziawg-go built in, as the package CI builds has it.
+      - run: go vet -tags amneziawg_go ./helper
+      - run: go test -tags amneziawg_go ./helper
 
   linux-packages:
     name: Linux package (${{ matrix.flavor }})
@@ -49,8 +52,9 @@ jobs:
           go-version-file: linux/go.mod
           cache-dependency-path: linux/go.sum
       # The same container build as a release: the app compiles against the oldest distribution
-      # each package targets.
-      - run: make -C linux deb-${{ matrix.flavor }} ARCH=amd64
+      # each package targets. CI builds the amneziawg-go fallback: awgcore's repository is private
+      # and CI has no credentials for it.
+      - run: make -C linux deb-${{ matrix.flavor }} ARCH=amd64 USERSPACE=amneziawg-go
       - uses: actions/upload-artifact@v7
         with:
           name: awgbar-${{ matrix.flavor }}-amd64

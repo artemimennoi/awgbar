@@ -78,9 +78,9 @@ awgbar (Qt tray and window, runs as you)
     │  JSON over /run/awgbar/helper.sock; polkit decides who may connect
     ▼
 awgbar-helper (systemd service, root, network capabilities only)
-    │  amneziawg-go built in, netlink, nftables, systemd-resolved, logind
+    │  starts awgcore and talks UAPI to it; netlink, nftables, systemd-resolved, logind
     ▼
-awgbar0 (TUN) + policy routing + firewall + DNS
+awgcore (its own process) → awgbar0 (TUN) + policy routing + firewall + DNS
 ```
 
 The main job is the one the AmneziaVPN client fails at on Linux: after the laptop sleeps, locks or
@@ -102,13 +102,28 @@ moves to another network, the VPN comes back by itself.
   16702: not fwmark 0x4157 lookup 16727      (default via awgbar0, blackhole behind it)
   ```
 
+- The tunnel is awgcore, our own AmneziaWG core in Rust (`artemimennoi/awgcore`), run by the
+  helper as a process of its own and configured over its UAPI socket,
+  `/var/run/amneziawg/awgbar0.sock`, so `awg show awgbar0` works. If it exits, the helper starts it
+  again (after 1 s, backing off to 30 s if it keeps exiting) with the rules and the kill switch in
+  place, so nothing leaks meanwhile. Its socket carries the fwmark and every datagram leaves by the
+  interface its route takes outside the tunnel, so the tunnel can never loop into itself; it follows
+  network changes over netlink, rebuilds its socket after any error and starts a handshake after
+  20 s without replies, each logged to the journal (`journalctl -u awgbar-helper`, or
+  `-t awgcore`). awgcore is built for x86-64-v3, a CPU with AVX2 (Intel Core since 2013, AMD
+  since 2015, not every Pentium, Celeron or Atom); on one without it the helper refuses to connect
+  (`version` reports the missing flags, the app shows why) and says so in the journal. The package
+  built with `USERSPACE=amneziawg-go`, CI's, has no awgcore and runs `amneziawg-go` inside the
+  helper instead.
 - The kill switch is an nftables table, `inet awgbar`. Marked packets always pass, so it never
   blocks the reconnect.
 - DNS: with systemd-resolved the servers sit on `awgbar0` with the `~.` routing domain and other
   links stop being DNS default routes; without it `/etc/resolv.conf` is replaced and put back on
   disconnect. If NetworkManager changes either, the helper undoes it within seconds.
-- After wake-up, a new default route or address, it looks the server up again outside the tunnel,
-  rebinds the socket and starts a handshake; with no handshake in 20 s it recreates the device.
+- After wake-up, a new default route or address, it looks the server up again outside the tunnel
+  and hands the tunnel the address; `amneziawg-go` also gets its socket rebound and a handshake
+  started, which awgcore does by itself. With no handshake in 20 s it recreates the device; an
+  awgcore that stops answering over UAPI for 15 s is recreated too.
 - If the service crashes, systemd restarts it and it reconnects; traffic stays blocked in between
   for as long as it takes (the app shows the tunnel as on; Disconnect lets traffic through). A
   package upgrade tells the running service first, so it keeps its rules and DNS across the

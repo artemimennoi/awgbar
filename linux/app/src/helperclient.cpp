@@ -15,6 +15,8 @@ QString HelperReply::error() const
 {
     if (!transportError.isEmpty())
         return transportError;
+    if (code() == QLatin1String("unsupported-cpu"))
+        return L("This processor is not supported");
     const QString message = json.value(QStringLiteral("error")).toString();
     return message.isEmpty() ? L("Helper error") : message;
 }

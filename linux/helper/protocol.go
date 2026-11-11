@@ -74,6 +74,8 @@ type Response struct {
 	DebugLog *bool        `json:"debugLog,omitempty"`
 	Stats    *TunnelStats `json:"stats,omitempty"`
 	Log      string       `json:"log,omitempty"`
+	// version: the x86-64-v3 flags this CPU lacks, when this helper cannot run a tunnel on it.
+	UnsupportedCPU string `json:"unsupportedCpu,omitempty"`
 	// Set on some failures so the app can word them itself: "duplicate:<tunnel name>".
 	Code string `json:"code,omitempty"`
 }

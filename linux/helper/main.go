@@ -1,4 +1,5 @@
-// awgbar-helper is the root service behind AWG Bar on Linux. It runs amneziawg-go in-process,
+// awgbar-helper is the root service behind AWG Bar on Linux. It runs the userspace tunnel (awgcore
+// as a process of its own, or amneziawg-go in-process in the fallback package, see engine.go),
 // owns the routing rules and DNS while a tunnel is up, and watches sleep and network changes so
 // the tunnel comes back on its own. The app talks to it over /run/awgbar/helper.sock.
 package main
@@ -102,8 +103,15 @@ func reconnect() {
 			return // the user disconnected or connected something else meanwhile
 		}
 		c, err := loadConfig(name)
+		if err == nil && unsupportedCPU() != "" {
+			// This helper cannot run a tunnel on this CPU (an upgrade onto a CPU without
+			// x86-64-v3): that will not change either, and blocking would cut the machine off
+			// with nothing in the app to undo it.
+			err = cpuError(unsupportedCPU())
+		}
 		if err != nil {
-			// Deleted or unreadable: it will never come back, so stop blocking.
+			// Deleted or unreadable, or a CPU it cannot run on: it will never come back, so stop
+			// blocking.
 			log("reconnect %s: %v, giving up", name, err)
 			cleanUpStaleState(false)
 			_ = os.Remove(activePath)

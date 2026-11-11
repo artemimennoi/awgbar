@@ -29,7 +29,8 @@ struct Stats {
 class Store : public QObject {
     Q_OBJECT
 public:
-    enum class Helper { Checking, Ready, Unreachable, Denied, Outdated };
+    // Unsupported: this helper cannot run a tunnel on this CPU (helperProblem() names what it lacks).
+    enum class Helper { Checking, Ready, Unreachable, Denied, Outdated, Unsupported };
 
     explicit Store(QObject *parent = nullptr);
 
