@@ -369,7 +369,7 @@ class Indicator extends PanelMenu.Button {
         this._add.connect('clicked', () => this._togglePopup(this._add, [
             {text: _('From Clipboard'), icon: 'edit-paste-symbolic', action: () => this._importFromClipboard()},
             {text: _('From File…'), icon: 'document-open-symbolic', action: () => this._importFromFile()},
-        ]));
+        ], 0));
         footer.add_child(this._add);
         footer.add_child(new St.Widget({x_expand: true}));
         this._menuButton = iconButton('emblem-system-symbolic', _('Settings'));
@@ -381,14 +381,15 @@ class Indicator extends PanelMenu.Button {
         content.add_child(footer);
     }
 
-    // A small menu anchored to `source`, floating over the open menu with its own arrow and
-    // shadow; the main menu stays open and doesn't move. Clicking the same button again closes it.
-    _togglePopup(source, items) {
+    // A small menu anchored to `source`, floating over the open menu with its own shadow; the
+    // main menu stays open and doesn't move. Clicking the same button again closes it.
+    // `alignment` places the button along the small menu's edge: 0 at its left, 1 at its right.
+    _togglePopup(source, items, alignment) {
         const reopen = this._popup?.sourceActor !== source;
         this._popup?.close();
         if (!reopen)
             return;
-        const popup = new PopupMenu.PopupMenu(source, 0.5, St.Side.TOP);
+        const popup = new PopupMenu.PopupMenu(source, alignment, St.Side.TOP);
         popup.actor.add_style_class_name('awgbar-popup');
         for (const {text, icon, action} of items) {
             const item = new PopupMenu.PopupImageMenuItem(text, icon);
@@ -536,8 +537,9 @@ class Indicator extends PanelMenu.Button {
     _addTunnelRow(tunnel, locked, busy) {
         const selected = tunnel.name === this._store.selected;
         const box = new St.BoxLayout({style_class: 'awgbar-row-box', x_expand: true});
-        // Another tunnel while connected: it can't be chosen, but its ⋮ still works.
-        const dimmed = locked && !selected;
+        // Another tunnel while connected: it can't be chosen, but its ⋮ still works. While busy the
+        // whole list is dimmed, its radio dots included, as on macOS.
+        const dimmed = busy || locked && !selected;
         const ornament = new St.Icon({
             style_class: 'popup-menu-ornament',
             icon_name: selected ? 'ornament-dot-checked-symbolic' : 'ornament-dot-unchecked-symbolic',
@@ -550,14 +552,13 @@ class Indicator extends PanelMenu.Button {
         const actions = () => this._togglePopup(more, [
             {text: _('Rename…'), icon: 'document-edit-symbolic', action: () => this._rename(tunnel)},
             {text: _('Delete…'), icon: 'user-trash-symbolic', action: () => this._delete(tunnel)},
-        ]);
+        ], 1);
         more.connect('clicked', actions);
         box.add_child(more);
 
         const row = new St.Button({
             style_class: 'popup-menu-item awgbar-row awgbar-tunnel',
             can_focus: !busy,
-            reactive: !busy,
             x_expand: true,
             child: box,
             accessible_name: tunnel.displayName,
@@ -565,6 +566,8 @@ class Indicator extends PanelMenu.Button {
             button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE,
         });
         row.connect('clicked', (_row, button) => {
+            if (this._store.busy)
+                return;
             if (button === 3) {
                 actions();
                 return;
