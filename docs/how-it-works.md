@@ -132,6 +132,33 @@ moves to another network, the VPN comes back by itself.
   `/usr/lib/awgbar/awgbar-helper --print-config <tunnel>` shows the config as the helper reads it,
   `--kick` does now what happens after wake-up.
 
+### Fedora (GNOME)
+
+The Fedora package (`make -C linux rpm`) has the same helper and no Qt app: the client is a GNOME
+Shell extension, `awgbar@artemimennoi.github.io` (`linux/gnome/`), with the same menu in the top
+bar.
+
+```
+GNOME Shell extension (in gnome-shell, runs as you)    preferences window (its own process)
+    │  JSON over /run/awgbar/helper.sock, as the Qt app; polkit decides who may connect
+    ▼
+awgbar-helper → awgcore, as above
+```
+
+- The extension and its preferences window are clients like the Qt app: one JSON request per
+  connection, every request the Qt app sends. The helper sees gnome-shell's process: in the
+  desktop session it is the user at the machine and needs no password; the same user over ssh is
+  refused. The Shell can't show a file chooser, so **From File…** opens the preferences window
+  with one (`Gtk.FileDialog`); **From Clipboard** imports in the menu itself.
+- The binaries live in `/usr/libexec/awgbar`, not `/usr/lib/awgbar`: SELinux labels `/usr/lib`
+  `lib_t`, which systemd would run in its own `init_t` domain; from `/usr/libexec` (`bin_t`) the
+  helper and awgcore run as `unconfined_service_t`, like any third-party root service.
+- firewalld keeps its own nftables table, `inet firewalld`; a `firewall-cmd --reload` leaves
+  `inet awgbar` in place. NetworkManager shows `awgbar0` as connected externally and leaves it
+  alone.
+- The extension doesn't disconnect when it is disabled (the screen locking, logging out): the
+  helper keeps the tunnel and the menu shows it again.
+
 ## Android
 
 A single-screen Compose app with the `tunnel` module of

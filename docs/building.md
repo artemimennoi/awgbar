@@ -47,8 +47,16 @@ so one binary runs under both (its repository pins the Rust toolchain, which the
 
 ```bash
 make -C linux deb              # linux/build/dist/awgbar_<version>_qt{5,6}_amd64.deb
+make -C linux rpm              # linux/build/dist/awgbar-<version>-1.x86_64.rpm, Fedora (GNOME)
 make -C linux test             # helper unit tests in a container
 ```
+
+The Fedora package has the helper and the GNOME Shell extension (`linux/gnome/`), built in a
+Fedora 43 container, the oldest Fedora it targets (GNOME 49 to 51); `linux/gnome/build.sh` checks
+that every string the extension shows has a Russian translation in `linux/gnome/po/ru.po`. To try
+the extension without the package, copy the built `awgbar@artemimennoi.github.io` into
+`~/.local/share/gnome-shell/extensions/`, log out and in, and run `gnome-extensions enable
+awgbar@artemimennoi.github.io`; it needs the helper running.
 
 The default package's helper has no `amneziawg-go` in it: awgcore is the tunnel, and on a CPU
 without x86-64-v3 the helper refuses to connect and the app says why.
