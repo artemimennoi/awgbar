@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="awgbar">
+  <schema id="org.gnome.shell.extensions.awgbar" path="/org/gnome/shell/extensions/awgbar/">
+    <key name="selected" type="s">
+      <default>''</default>
+      <summary>The tunnel the power button connects</summary>
+    </key>
+    <key name="choose-file" type="b">
+      <default>false</default>
+      <summary>Set by the menu's "From File…": the preferences window opens the file chooser</summary>
+    </key>
+  </schema>
+</schemalist>

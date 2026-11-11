@@ -1,0 +1,20 @@
+
+/* Colors for the Shell's dark style. GNOME's palette: Green 4, Orange 3; red as the Shell's
+   dark style draws error text. */
+.awgbar-dot { background-color: rgba(255, 255, 255, 0.35); }
+.awgbar-dot.on { background-color: #2ec27e; }
+.awgbar-dot.busy { background-color: #ff7800; }
+.awgbar-halo.on { background-color: rgba(46, 194, 126, 0.22); }
+.awgbar-halo.busy { background-color: rgba(255, 120, 0, 0.22); }
+.awgbar-status,
+.awgbar-empty-hint,
+.awgbar-problem-detail,
+.awgbar-info-text.stats,
+.awgbar-info-text.notice,
+.awgbar-info-icon.notice,
+.awgbar-traffic { color: rgba(255, 255, 255, 0.6); }
+.awgbar-info-text.endpoint { color: rgba(255, 255, 255, 0.4); }
+.awgbar-info-text.error,
+.awgbar-info-icon.error { color: #ff7b63; }
+.awgbar-info-text.warning,
+.awgbar-info-icon.warning { color: #ffa348; }

@@ -1,0 +1,172 @@
+/* The layout of the macOS menu in GNOME Shell's own widgets. The build appends the colors of the
+   Shell's dark or light style (colors-dark.css, colors-light.css) to make stylesheet-dark.css and
+   stylesheet-light.css; the Shell loads the one for its current style. */
+
+.awgbar-content {
+  width: 22em;
+  spacing: 10px;
+  padding: 6px 6px 2px;
+}
+
+.awgbar-header {
+  spacing: 8px;
+  padding: 0 4px;
+}
+
+.awgbar-title {
+  font-weight: bold;
+}
+
+.awgbar-status {
+  font-size: 0.9em;
+}
+
+.awgbar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+}
+
+.awgbar-main {
+  spacing: 10px;
+}
+
+/* Room around the button for the halo at its fullest (88 px × 1.14). */
+.awgbar-power-area {
+  height: 104px;
+}
+
+.awgbar-power,
+.awgbar-halo {
+  width: 88px;
+  height: 88px;
+  border-radius: 44px;
+}
+
+.awgbar-power {
+  padding: 0;
+}
+
+/* The shield is 50 of the button's 88 points, as on macOS. */
+.awgbar-shield {
+  width: 50px;
+  height: 50px;
+}
+
+/* Five rows show; more scroll. */
+.awgbar-tunnels {
+  max-height: 13.5em;
+}
+
+.awgbar-row {
+  padding: 4px 4px 4px 10px;
+}
+
+.awgbar-row-box {
+  spacing: 8px;
+}
+
+/* The ⋮ and + menus: as narrow as their items. */
+.awgbar-popup {
+  min-width: 10em;
+}
+
+.awgbar-icon-button {
+  padding: 6px;
+}
+
+/* ⋮ and ✕ are flat until hovered, like the macOS menu's; the Shell's hover and focus apply. */
+.awgbar-more,
+.awgbar-dismiss {
+  background-color: transparent;
+}
+
+.awgbar-empty {
+  spacing: 4px;
+  padding: 8px 4px;
+}
+
+.awgbar-empty-title {
+  font-weight: bold;
+}
+
+.awgbar-empty-hint {
+  font-size: 0.9em;
+}
+
+.awgbar-import-row {
+  spacing: 8px;
+  padding-top: 6px;
+}
+
+.awgbar-bypass {
+  spacing: 8px;
+  padding: 0 4px;
+}
+
+.awgbar-bypass-label {
+  font-size: 0.9em;
+}
+
+.awgbar-bypass-entry {
+  font-size: 0.9em;
+}
+
+.awgbar-problem {
+  spacing: 6px;
+  padding: 4px;
+}
+
+.awgbar-problem-title {
+  font-weight: bold;
+}
+
+/* Small enough for the whole command to fit the menu's width. */
+.awgbar-problem-command {
+  font-family: monospace;
+  font-size: 0.8em;
+}
+
+.awgbar-problem-detail,
+.awgbar-problem-hint {
+  font-size: 0.9em;
+}
+
+/* Always the height of its buttons, so errors coming and going don't move the footer. */
+.awgbar-info {
+  spacing: 6px;
+  padding: 0 0 0 4px;
+  min-height: 30px;
+  font-size: 0.9em;
+}
+
+.awgbar-info-icon {
+  icon-size: 16px;
+}
+
+.awgbar-traffic {
+  font-feature-settings: "tnum";
+}
+
+.awgbar-copy-log {
+  padding: 2px 10px;
+  min-height: 0;
+  font-size: 0.9em;
+}
+
+.awgbar-dismiss {
+  padding: 4px;
+}
+
+.awgbar-footer {
+  padding: 0;
+}
+
+.awgbar-dialog-row {
+  spacing: 12px;
+  padding-top: 12px;
+}
+
+.awgbar-dialog-entry {
+  min-width: 16em;
+}

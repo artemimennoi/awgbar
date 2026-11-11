@@ -1,0 +1,10 @@
+{
+  "uuid": "awgbar@artemimennoi.github.io",
+  "name": "AWG Bar",
+  "description": "AmneziaWG VPN in the top bar: import an AmneziaVPN key (vpn://...) or an AmneziaWG .conf and press the shield. Needs the awgbar package, whose service runs the tunnel.",
+  "shell-version": ["49", "50", "51"],
+  "url": "https://github.com/artemimennoi/awgbar",
+  "gettext-domain": "awgbar",
+  "settings-schema": "org.gnome.shell.extensions.awgbar",
+  "version-name": "@VERSION@"
+}
