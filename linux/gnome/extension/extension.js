@@ -58,15 +58,6 @@ function iconButton(iconName, accessibleName, styleClass = 'icon-button awgbar-i
     });
 }
 
-// A menu-styled row button: the Shell's popup-menu-item look and keyboard handling.
-function menuButton(text, iconName) {
-    const box = new St.BoxLayout({style_class: 'awgbar-row-box', x_expand: true});
-    if (iconName)
-        box.add_child(new St.Icon({icon_name: iconName, style_class: 'popup-menu-icon'}));
-    box.add_child(label(text, 'awgbar-row-label', {x_expand: true}));
-    return new St.Button({style_class: 'popup-menu-item awgbar-row', can_focus: true, x_expand: true, child: box});
-}
-
 // The macOS menu's power button: the app's shield on a round Shell button, with a soft halo
 // breathing behind it while connected (slowly) or busy (quickly), at the macOS pace.
 const PowerButton = GObject.registerClass({
@@ -214,7 +205,10 @@ class Indicator extends PanelMenu.Button {
         this._extension = extension;
         this._settings = extension.getSettings();
         this._dialog = null;
-        this._openActions = '';
+        this._popup = null;
+        // Secondary menus (⋮, +) float over the open menu with a grab of their own, so Escape or
+        // a click outside closes only them, as a context menu in the Shell's own entries does.
+        this._popupManager = new PopupMenu.PopupMenuManager(this);
         this._tunnelSignature = null;
 
         this._icon = new St.Icon({style_class: 'system-status-icon'});
@@ -238,10 +232,9 @@ class Indicator extends PanelMenu.Button {
             if (open) {
                 this._store.refresh();
             } else {
-                // Like closing the macOS menu: an unsaved Bypass edit and open actions go away.
+                // Like closing the macOS menu: an unsaved Bypass edit and a secondary menu go away.
                 this._revertBypass();
-                this._toggleActions('');
-                this._addMenu.visible = false;
+                this._popup?.close();
             }
         });
         this._sync();
@@ -373,9 +366,10 @@ class Indicator extends PanelMenu.Button {
         // Add a tunnel on the left, settings on the right.
         const footer = new St.BoxLayout({style_class: 'awgbar-footer', x_expand: true});
         this._add = iconButton('list-add-symbolic', _('Add Tunnel'));
-        this._add.connect('clicked', () => {
-            this._addMenu.visible = !this._addMenu.visible;
-        });
+        this._add.connect('clicked', () => this._togglePopup(this._add, [
+            {text: _('From Clipboard'), icon: 'edit-paste-symbolic', action: () => this._importFromClipboard()},
+            {text: _('From File…'), icon: 'document-open-symbolic', action: () => this._importFromFile()},
+        ]));
         footer.add_child(this._add);
         footer.add_child(new St.Widget({x_expand: true}));
         this._menuButton = iconButton('emblem-system-symbolic', _('Settings'));
@@ -385,15 +379,39 @@ class Indicator extends PanelMenu.Button {
         });
         footer.add_child(this._menuButton);
         content.add_child(footer);
+    }
 
-        this._addMenu = new St.BoxLayout({orientation: VERTICAL, style_class: 'popup-sub-menu awgbar-add-menu', visible: false});
-        const fromClipboard = menuButton(_('From Clipboard'), 'edit-paste-symbolic');
-        fromClipboard.connect('clicked', () => this._importFromClipboard());
-        const fromFile = menuButton(_('From File…'), 'document-open-symbolic');
-        fromFile.connect('clicked', () => this._importFromFile());
-        this._addMenu.add_child(fromClipboard);
-        this._addMenu.add_child(fromFile);
-        content.add_child(this._addMenu);
+    // A small menu anchored to `source`, floating over the open menu with its own arrow and
+    // shadow; the main menu stays open and doesn't move. Clicking the same button again closes it.
+    _togglePopup(source, items) {
+        const reopen = this._popup?.sourceActor !== source;
+        this._popup?.close();
+        if (!reopen)
+            return;
+        const popup = new PopupMenu.PopupMenu(source, 0.5, St.Side.TOP);
+        popup.actor.add_style_class_name('awgbar-popup');
+        for (const {text, icon, action} of items) {
+            const item = new PopupMenu.PopupImageMenuItem(text, icon);
+            item.connect('activate', () => action());
+            popup.addMenuItem(item);
+        }
+        Main.uiGroup.add_child(popup.actor);
+        popup.actor.hide();
+        this._popupManager.addMenu(popup);
+        popup.connect('menu-closed', () => {
+            if (this._popup === popup)
+                this._popup = null;
+            popup.destroy();
+        });
+        this._popup = popup;
+        popup.open();
+        // From the keyboard, straight to the first item; with the mouse, Down gets there.
+        const event = Clutter.get_current_event();
+        const type = event?.type();
+        if (type === Clutter.EventType.KEY_PRESS || type === Clutter.EventType.KEY_RELEASE)
+            popup.actor.navigate_focus(null, St.DirectionType.TAB_FORWARD, false);
+        else
+            popup.actor.grab_key_focus();
     }
 
     _sync() {
@@ -499,15 +517,13 @@ class Indicator extends PanelMenu.Button {
         // Footer
         this._add.reactive = usable && !busy;
         this._add.can_focus = this._add.reactive;
-        if (!this._add.reactive)
-            this._addMenu.visible = false;
     }
 
     // Rows are rebuilt only when something in them changed, so polling doesn't reset hover or focus.
     _syncTunnels() {
         const store = this._store;
         const locked = store.selectionLocked;
-        const signature = JSON.stringify([store.selected, locked, store.busy, this._openActions,
+        const signature = JSON.stringify([store.selected, locked, store.busy,
             store.tunnels.map(t => [t.name, t.displayName])]);
         if (signature === this._tunnelSignature)
             return;
@@ -531,7 +547,11 @@ class Indicator extends PanelMenu.Button {
         box.add_child(label(tunnel.displayName, 'awgbar-row-label', {x_expand: true, opacity: dimmed ? 115 : 255}));
         const more = iconButton('view-more-symbolic', _('More'), 'icon-button awgbar-icon-button awgbar-more');
         more.reactive = !busy;
-        more.connect('clicked', () => this._toggleActions(tunnel.name));
+        const actions = () => this._togglePopup(more, [
+            {text: _('Rename…'), icon: 'document-edit-symbolic', action: () => this._rename(tunnel)},
+            {text: _('Delete…'), icon: 'user-trash-symbolic', action: () => this._delete(tunnel)},
+        ]);
+        more.connect('clicked', actions);
         box.add_child(more);
 
         const row = new St.Button({
@@ -541,30 +561,20 @@ class Indicator extends PanelMenu.Button {
             x_expand: true,
             child: box,
             accessible_name: tunnel.displayName,
+            // A right click opens ⋮'s menu, as the macOS menu's context menu does.
+            button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE,
         });
-        row.connect('clicked', () => {
+        row.connect('clicked', (_row, button) => {
+            if (button === 3) {
+                actions();
+                return;
+            }
             if (selected)
                 return;
             if (!this._store.select(tunnel.name) && this._store.active)
                 this._store.setNotice(_('Disconnect to switch tunnels'));
         });
         this._tunnelBox.add_child(row);
-
-        if (this._openActions !== tunnel.name)
-            return;
-        const actions = new St.BoxLayout({orientation: VERTICAL, style_class: 'popup-sub-menu awgbar-actions'});
-        const rename = menuButton(_('Rename…'), 'document-edit-symbolic');
-        rename.connect('clicked', () => this._rename(tunnel));
-        const remove = menuButton(_('Delete…'), 'user-trash-symbolic');
-        remove.connect('clicked', () => this._delete(tunnel));
-        actions.add_child(rename);
-        actions.add_child(remove);
-        this._tunnelBox.add_child(actions);
-    }
-
-    _toggleActions(name) {
-        this._openActions = this._openActions === name ? '' : name;
-        this._syncTunnels();
     }
 
     _openDialog(dialog) {
@@ -620,7 +630,6 @@ class Indicator extends PanelMenu.Button {
     }
 
     _importFromClipboard() {
-        this._addMenu.visible = false;
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_clipboard, text) => {
             if (this._store)
                 this._store.importText(text ?? '', 'awg');
@@ -629,13 +638,14 @@ class Indicator extends PanelMenu.Button {
 
     // The Shell has no file chooser; the preferences window opens one (prefs.js).
     _importFromFile() {
-        this._addMenu.visible = false;
         this.menu.close();
         this._settings.set_boolean('choose-file', true);
         this._extension.openPreferences();
     }
 
     _onDestroy() {
+        this._popup?.destroy();
+        this._popup = null;
         this._dialog?.close();
         this._dialog = null;
         // The menu goes first: closing it still talks to the store.

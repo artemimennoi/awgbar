@@ -66,9 +66,9 @@
   spacing: 8px;
 }
 
-.awgbar-actions,
-.awgbar-add-menu {
-  margin-bottom: 0;
+/* The ⋮ and + menus: as narrow as their items. */
+.awgbar-popup {
+  min-width: 10em;
 }
 
 .awgbar-icon-button {
