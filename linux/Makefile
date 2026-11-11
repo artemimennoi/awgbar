@@ -36,7 +36,7 @@ RPM_IMAGE := fedora:43
 # for awgcore. The default helper has no amneziawg-go in it.
 USERSPACE   ?= awgcore
 AWGCORE_URL ?= https://github.com/artemimennoi/awgcore
-AWGCORE_REV ?= eebf3502dc68e4a161817f08c0fb7aae095f59a6
+AWGCORE_REV ?= 30c55273823f9df00c4cc22632442668998d8e1e
 AWGCORE_SRC := $(BUILD)/awgcore-src/$(AWGCORE_REV)
 # The Rust toolchain awgcore pins, downloaded once per architecture and kept between builds.
 RUST_CACHE  := $(BUILD)/rust-$(ARCH)
